@@ -57,13 +57,17 @@ Omarchy com config Lua (`~/.config/hypr/bindings.lua` / `hyprland.lua`):
 ```lua
 o.bind("SUPER + ALT + P", "Peep", "omarchy-shell peep toggle")
 -- opcional: viewer num workspace próprio, ou flutuando
-o.window("^peep$", { workspace = "9" })
--- o.window("^peep$", { float = true })
+o.window({ title = "^Peep$" }, { workspace = "9" })
+-- o.window({ title = "^Peep$" }, { float = true })
 ```
 
 Hyprland com config `.conf` clássica:
 
 ```ini
 bind = SUPER ALT, P, exec, omarchy-shell peep toggle
-windowrule = workspace 9, class:^peep$
+windowrule = workspace 9, title:^Peep$
 ```
+
+Em Chromium nativo Wayland, a classe de janelas `--app` pode ser gerada pelo
+navegador (`chrome-<host>__r_<code>-Default`), mesmo com `--class=peep`.
+Por isso os exemplos usam o título. Confira o valor local com `hyprctl clients`.
