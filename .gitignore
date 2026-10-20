@@ -8,3 +8,4 @@ dist/
 target/
 .DS_Store
 apps/desktop/src-tauri/gen/
+.codegraph/

@@ -32,6 +32,19 @@ execução (Windows/web) ou lido de `~/.config/peep/config.json` (Linux).
   `windows-latest` e anexa o plugin Linux à release. Commits comuns não geram build.
   A URL pública da API embutida no app vem da variável de repositório `PEEP_API_URL`.
 
+## Instalação dos clientes
+
+A página inicial apresenta o projeto e mostra o comando para o seu sistema.
+`/join` abre a tela de criar/entrar em uma sala; links `/r/{code}` continuam diretos.
+
+- **Linux / Omarchy:** o comando `curl` instala o plugin Quickshell da última
+  release. A URL do servidor vem da página, e o segredo é configurado localmente.
+- **Windows:** o comando PowerShell baixa o instalador x64 da última release.
+  Releases sem assinatura digital exigem confirmação explícita; nenhuma política
+  de segurança do Windows é desativada.
+- Prefere inspecionar antes? `install.sh` e `install.ps1` estão disponíveis no
+  site e como anexos da release. A instalação não apaga configurações existentes.
+
 ## Desenvolvimento
 
 ```sh

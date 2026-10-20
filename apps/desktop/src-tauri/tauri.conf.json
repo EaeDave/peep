@@ -13,7 +13,7 @@
 		"windows": [
 			{
 				"label": "popup",
-				"url": "index.html",
+				"url": "join",
 				"title": "Peep",
 				"width": 320,
 				"height": 440,

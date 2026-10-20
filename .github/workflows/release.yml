@@ -38,6 +38,17 @@ jobs:
       - run: npm ci
         working-directory: apps/desktop
 
+      - name: Validate PowerShell installer syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'apps/web/static/install.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+
       # Builds apps/web (beforeBuildCommand) and bundles .msi + NSIS .exe,
       # then creates the GitHub release for this tag with the installers.
       - uses: tauri-apps/tauri-action@v0
@@ -66,4 +77,4 @@ jobs:
       - name: Attach to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$GITHUB_REF_NAME" peep-omarchy-plugin.tar.gz --clobber
+        run: gh release upload "$GITHUB_REF_NAME" peep-omarchy-plugin.tar.gz apps/web/static/install.sh apps/web/static/install.ps1 --clobber

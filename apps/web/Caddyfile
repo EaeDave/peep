@@ -10,6 +10,8 @@
 	@immutable path /_app/immutable/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
 	header ?Cache-Control "no-cache"
+	@installers path /install.sh /install.ps1
+	header @installers Content-Type "text/plain; charset=utf-8"
 	# SPA: unknown paths (e.g. /r/ABC-123) fall back to index.html
 	try_files {path} /index.html
 	file_server

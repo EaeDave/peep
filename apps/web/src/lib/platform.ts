@@ -13,5 +13,5 @@ export async function openViewer(code: string) {
 /** Viewer "Sair": Tauri closes the viewer window; the browser returns to the Mini screen. */
 export async function leaveViewer() {
 	if (isTauri) await getCurrentWindow().close();
-	else await goto('/');
+	else await goto('/join');
 }
