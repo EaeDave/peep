@@ -106,5 +106,10 @@ if ((update)); then
   exit 0
 fi
 omarchy-shell shell rescanPlugins
-omarchy plugin enable peep
+# rescanPlugins returns before the shell has indexed the new plugin.
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  omarchy plugin enable peep 2>/dev/null && break
+  ((attempt < 10)) || fail 'Installed, but the shell did not register the plugin. Run: omarchy plugin enable peep'
+  sleep 1
+done
 printf 'Peep installed. Open its gear to configure the server access key. Existing configuration was preserved.\n'
