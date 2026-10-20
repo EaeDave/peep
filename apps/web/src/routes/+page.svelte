@@ -103,7 +103,8 @@
 	.browser-link { font-size: 13px; color: #c4bdcf; }
 	.browser-link span { margin-left: 8px; }
 	.github { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #ffffff16; border-radius: 12px; }
-	main { display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 70px; padding: 88px 0 82px; }
+	main { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 70px; padding: 88px 0 82px; }
+	.intro { min-width: 0; }
 	.eyebrow { display: flex; align-items: center; gap: 9px; color: #bfb0d4; font-size: 9px; letter-spacing: 1.6px; font-weight: 600; }
 	.eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 14px #b7f3d044; }
 	h1 { font-size: clamp(56px, 6.2vw, 82px); line-height: .99; letter-spacing: -5px; font-weight: 750; margin: 27px 0; }
