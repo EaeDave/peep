@@ -44,6 +44,8 @@ A página inicial apresenta o projeto e mostra o comando para o seu sistema.
   de segurança do Windows é desativada.
 - Prefere inspecionar antes? `install.sh` e `install.ps1` estão disponíveis no
   site e como anexos da release. A instalação não apaga configurações existentes.
+  Os instaladores resolvem a release pela API do GitHub e usam o endereço
+  versionado do artefato, evitando redirecionamentos `latest/download` em cache.
 
 ## Desenvolvimento
 

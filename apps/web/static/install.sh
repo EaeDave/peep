@@ -39,9 +39,15 @@ umask 077
 [[ ! -L $plugins && ! -L $config_root/omarchy ]] || fail 'Omarchy plugin parent is a symlink; install manually to avoid changing its target.'
 tmp=$(mktemp -d)
 trap 'rm -rf -- "$tmp"' EXIT
+# Resolve the asset via the API: GitHub's latest/download redirect can cache
+# the previous release even after a new one is published.
+asset=$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+  https://api.github.com/repos/EaeDave/peep/releases/latest \
+  | jq -er '[.assets[] | select(.name == "peep-omarchy-plugin.tar.gz")] | if length == 1 then .[0].browser_download_url else error("Missing or ambiguous plugin asset") end')
+[[ $asset == https://github.com/EaeDave/peep/releases/download/*/peep-omarchy-plugin.tar.gz && $asset != *[$'\r\n\t ']* ]] \
+  || fail 'Release returned an unexpected plugin URL.'
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-  https://github.com/EaeDave/peep/releases/latest/download/peep-omarchy-plugin.tar.gz \
-  --output "$tmp/plugin.tar.gz"
+  "$asset" --output "$tmp/plugin.tar.gz"
 # Reject paths outside peep/ and links before extracting the release archive.
 tar -tzf "$tmp/plugin.tar.gz" > "$tmp/members"
 while IFS= read -r member; do
