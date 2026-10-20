@@ -1,0 +1,69 @@
+# Client release: runs only for version tags (scripts/release.sh), never per commit.
+# Server code deploys separately via Coolify on push to main.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm ci
+        working-directory: apps/desktop
+
+      # Builds apps/web (beforeBuildCommand) and bundles .msi + NSIS .exe,
+      # then creates the GitHub release for this tag with the installers.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Public room-api URL baked into the bundled UI (repo variable, not a secret).
+          # Empty → the app asks for it on first run.
+          VITE_API_URL: ${{ vars.PEEP_API_URL }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: Peep ${{ github.ref_name }}
+          releaseBody: |
+            **Windows:** baixe o `.msi` ou o `-setup.exe`.
+            **Linux (Omarchy):** baixe `peep-omarchy-plugin.tar.gz` e siga `apps/quickshell/README.md`.
+          releaseDraft: false
+          prerelease: false
+
+  omarchy-plugin:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Omarchy/Quickshell plugin
+        run: tar -czf peep-omarchy-plugin.tar.gz --transform 's,^apps/quickshell,peep,' apps/quickshell
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" peep-omarchy-plugin.tar.gz --clobber

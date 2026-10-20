@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "peep",
+  "name": "Peep",
+  "version": "0.1.0",
+  "author": "Peep contributors",
+  "license": "MIT",
+  "description": "Join or create Peep screen-share rooms from the bar. Toggle with: omarchy-shell peep toggle",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "PeepButton.qml"
+  },
+  "barWidget": {
+    "displayName": "Peep",
+    "description": "Screen/camera sharing rooms (opens Chromium --app).",
+    "category": "Utilities",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -1,3 +1,6 @@
+import { replaceState } from '$app/navigation';
+import { page } from '$app/state';
+
 // Local client settings (localStorage, never fatal if unavailable).
 
 const DEFAULT_API = import.meta.env.VITE_API_URL ?? '';
@@ -43,19 +46,20 @@ export const settings = {
 };
 
 /**
- * Absorbs ?name=, ?secret= and ?api= (used by the Quickshell launcher) into
- * settings and strips secret/api from the address bar.
+ * Absorbs launcher parameters (Quickshell): `?name=` in the query and
+ * `#secret=…&api=…` in the fragment — fragments never reach the server or its
+ * logs. The fragment is stripped from the address bar afterwards.
  */
 export function absorbUrlParams() {
 	const url = new URL(location.href);
-	const p = url.searchParams;
-	if (p.get('name')) settings.name = p.get('name')!;
-	if (p.get('secret')) settings.secret = p.get('secret')!;
-	if (p.get('api')) settings.apiUrl = p.get('api')!;
-	if (p.has('secret') || p.has('api')) {
-		p.delete('secret');
-		p.delete('api');
-		history.replaceState(history.state, '', url);
+	const q = url.searchParams;
+	const h = new URLSearchParams(url.hash.slice(1));
+	if (q.get('name')) settings.name = q.get('name')!;
+	if (h.get('secret')) settings.secret = h.get('secret')!;
+	if (h.get('api')) settings.apiUrl = h.get('api')!;
+	if (url.hash) {
+		url.hash = '';
+		replaceState(url, page.state);
 	}
 }
 

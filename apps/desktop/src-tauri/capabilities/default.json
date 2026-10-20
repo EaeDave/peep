@@ -1,0 +1,7 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "default",
+	"description": "Popup and viewer windows (bundled frontend only)",
+	"windows": ["popup", "viewer"],
+	"permissions": ["core:default", "core:window:allow-close"]
+}

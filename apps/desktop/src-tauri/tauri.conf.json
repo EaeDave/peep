@@ -1,0 +1,40 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Peep",
+	"version": "../package.json",
+	"identifier": "app.peep.desktop",
+	"build": {
+		"frontendDist": "../../web/build",
+		"devUrl": "http://localhost:5173",
+		"beforeDevCommand": "npm --prefix ../web run dev",
+		"beforeBuildCommand": "npm --prefix ../web run build"
+	},
+	"app": {
+		"windows": [
+			{
+				"label": "popup",
+				"url": "index.html",
+				"title": "Peep",
+				"width": 320,
+				"height": 440,
+				"resizable": false,
+				"decorations": false,
+				"alwaysOnTop": true,
+				"skipTaskbar": true,
+				"visible": false,
+				"focus": true
+			}
+		],
+		"security": {
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["msi", "nsis"],
+		"icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+		"windows": {
+			"webviewInstallMode": { "type": "downloadBootstrapper" }
+		}
+	}
+}
