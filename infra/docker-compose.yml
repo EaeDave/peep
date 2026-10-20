@@ -1,0 +1,26 @@
+# Coolify: Docker Compose build pack, Base Directory "/infra",
+# Docker Compose Location "/docker-compose.yml". See infra/README.md.
+services:
+  livekit:
+    build: ./livekit
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?}: ${LIVEKIT_API_SECRET:?}"
+      LIVEKIT_TURN_DOMAIN: "${TURN_DOMAIN:?}"
+
+  room-api:
+    build: ../apps/api
+    restart: unless-stopped
+    expose:
+      - "8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      LIVEKIT_URL: "http://host.docker.internal:7880"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:?}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:?}"
+      INVITE_SECRET: "${INVITE_SECRET:?}"
+      PUBLIC_LIVEKIT_WS_URL: "${PUBLIC_LIVEKIT_WS_URL:?}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
+      PORT: "8080"

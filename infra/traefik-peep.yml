@@ -1,0 +1,41 @@
+# Coolify → Servers → <server> → Proxy → Dynamic Configurations → add "peep.yaml".
+# Replace DOMINIO. LiveKit runs with network_mode: host, so Traefik reaches it
+# via host.docker.internal (Coolify's proxy already maps it to host-gateway).
+http:
+  routers:
+    peep-lk:
+      rule: Host(`lk.DOMINIO`)
+      entryPoints: [https]
+      service: peep-lk
+      tls:
+        certResolver: letsencrypt
+    peep-lk-http:
+      rule: Host(`lk.DOMINIO`)
+      entryPoints: [http]
+      middlewares: [peep-https]
+      service: peep-lk
+  middlewares:
+    peep-https:
+      redirectScheme:
+        scheme: https
+  services:
+    peep-lk:
+      loadBalancer:
+        servers:
+          - url: http://host.docker.internal:7880
+
+tcp:
+  routers:
+    # TURN over TLS on 443: Traefik terminates TLS (Let's Encrypt) and forwards
+    # plain TCP to LiveKit's TURN listener (turn.external_tls: true).
+    peep-turn:
+      rule: HostSNI(`turn.DOMINIO`)
+      entryPoints: [https]
+      service: peep-turn
+      tls:
+        certResolver: letsencrypt
+  services:
+    peep-turn:
+      loadBalancer:
+        servers:
+          - address: host.docker.internal:5349
