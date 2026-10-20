@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "peep",
   "name": "Peep",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "Peep contributors",
   "license": "MIT",
   "description": "Join or create Peep screen-share rooms from the bar. Toggle with: omarchy-shell peep toggle",
