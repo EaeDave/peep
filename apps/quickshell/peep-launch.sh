@@ -24,6 +24,6 @@ enc() { jq -rn --arg v "$1" '$v|@uri'; }
 # Secret/API travel in the #fragment: never sent to the server, stripped by the page.
 url="${web%/}/r/$(enc "$code")?name=$(enc "$name")#secret=$(enc "$secret")&api=$(enc "$api")"
 
-exec "$browser" --app="$url" --class=peep \
+exec "$browser" --app="$url" --class=peep --wayland-app-id=peep \
   --user-data-dir="${XDG_DATA_HOME:-$HOME/.local/share}/peep/chromium" \
   --ozone-platform-hint=auto >/dev/null 2>&1

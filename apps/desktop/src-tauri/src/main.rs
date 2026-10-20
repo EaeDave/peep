@@ -43,14 +43,23 @@ fn toggle_popup(app: &AppHandle) {
 /// WIN-5: grant camera/mic/screen capture to our own bundled pages, no prompts.
 #[cfg(windows)]
 fn grant_media(w: &WebviewWindow) {
-    use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_PERMISSION_STATE_ALLOW;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_MICROPHONE,
+        COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+    };
     use webview2_com::PermissionRequestedEventHandler;
 
     let _ = w.with_webview(|wv| unsafe {
         let Ok(core) = wv.controller().CoreWebView2() else { return };
         let handler = PermissionRequestedEventHandler::create(Box::new(|_, args| {
             if let Some(args) = args {
-                args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                let mut kind = Default::default();
+                args.PermissionKind(&mut kind)?;
+                if kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE
+                {
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                }
             }
             Ok(())
         }));
