@@ -112,8 +112,12 @@
 	const toggleMic = () => act(async () => void (await session?.setMic(!session.micOn)));
 
 	async function copyCode() {
-		await navigator.clipboard.writeText(code).catch(() => {});
-		flash('Código copiado');
+		try {
+			await navigator.clipboard.writeText(code);
+			flash('Código copiado');
+		} catch {
+			flash(`Não foi possível copiar. Código da sala: ${code}`);
+		}
 	}
 
 	async function leave() {
@@ -130,7 +134,7 @@
 	function poke() {
 		controls = true;
 		clearTimeout(hideTimer);
-		hideTimer = setTimeout(() => !menu && !settingsOpen && (controls = false), 3000);
+		hideTimer = setTimeout(() => !menu && !settingsOpen && !!focus && (controls = false), 3000);
 	}
 
 	function onKey(e: KeyboardEvent) {
@@ -161,7 +165,7 @@
 	let focus = $derived(session?.tiles.find((t) => t.id === session?.focusId));
 </script>
 
-<svelte:window onkeydown={onKey} onmousemove={poke} />
+<svelte:window onkeydown={onKey} onmousemove={poke} onpointerdown={poke} />
 
 {#if needName || error}
 	<div class="center">
@@ -189,6 +193,21 @@
 	</div>
 {:else if session}
 	<div class="viewer" class:cursor-hidden={!controls}>
+		<header class="room-header" class:quiet={!controls} onfocusin={poke}>
+			<span class="brand">peep<span>.</span></span>
+			<div class="room-identity">
+				<span class="room-label">Sua sala</span>
+				<button class="room-code" onclick={copyCode} aria-label={`Copiar código da sala ${code}`}>
+					<span class="mono">{code}</span><Icon name="copy" size={15} />
+				</button>
+			</div>
+			<div class="room-tools">
+				<span class="connection"><span class="dot" class:connected={session.status === 'connected'}></span>{session.status === 'connected' ? 'Conectado' : session.status === 'connecting' ? 'Conectando' : session.status === 'reconnecting' ? 'Reconectando' : 'Desconectado'}</span>
+				<button class="icon-button" onclick={toggleFullscreen} title="Tela cheia (F)" aria-label="Alternar tela cheia"><Icon name="fullscreen" /></button>
+				<button class="icon-button" onclick={() => (settingsOpen = true)} aria-label="Configurações do servidor"><Icon name="settings" /></button>
+			</div>
+		</header>
+		<main class="room-content" class:with-people={peopleOpen}>
 		<section class="stage" ondblclick={toggleFullscreen} role="presentation">
 			{#if focus}
 				{#key focus.id}
@@ -200,12 +219,17 @@
 						muted
 					></video>
 				{/key}
-				<span class="tag">{focus.name}{focus.screen ? ' · tela' : ''}</span>
+				<span class="tag"><Icon name={focus.screen ? 'screen' : 'camera'} size={14} /> {focus.name}<span>{focus.screen ? 'Tela compartilhada' : 'Câmera'}</span></span>
 			{:else}
 				<div class="empty">
-					<p>Ninguém compartilhando ainda</p>
-					<p class="mono big">{code}</p>
-					<button onclick={copyCode}>Copiar código</button>
+					<div class="empty-screen"><Icon name="screen" size={42} /><span class="empty-camera"><Icon name="camera" size={20} /></span></div>
+					<h1>A sala está pronta.</h1>
+					<p>Compartilhe sua tela ou ligue a câmera.<br />O próximo momento acontece aqui.</p>
+					<button class="invite-code" onclick={copyCode} aria-label={`Copiar código da sala ${code}`}>
+						<span><span class="invite-label">Convide com este código</span><strong class="mono">{code}</strong></span>
+						<Icon name="copy" size={20} />
+					</button>
+					<span class="empty-note">Seu microfone começa desligado.</span>
 				</div>
 			{/if}
 
@@ -224,7 +248,7 @@
 		</section>
 
 		{#if session.tiles.length > 1 || (session.tiles.length === 1 && !focus)}
-			<aside class="strip" class:closed={!stripOpen}>
+			<aside class="strip" class:closed={!stripOpen} aria-label="Transmissões da sala">
 				<button class="handle" aria-label={stripOpen ? 'Recolher miniaturas' : 'Mostrar miniaturas'} aria-expanded={stripOpen} onclick={() => (stripOpen = !stripOpen)}>
 					<span class:rotate={!stripOpen}><Icon name="chevron-down" /></span>
 				</button>
@@ -252,18 +276,20 @@
 
 		{#if peopleOpen}
 			<aside class="people">
-				<h3>Na sala ({session.people.length})</h3>
+				<div class="people-heading"><h2>Na sala <span>{session.people.length}</span></h2><button class="icon-button" aria-label="Fechar participantes" onclick={() => (peopleOpen = false)}><Icon name="close" size={18} /></button></div>
+				<p class="people-help">Uma sala, a mesma tela.</p>
 				{#each session.people as p (p.identity)}
 					<div class="person">
-						<span class="dot" style:background={QUALITY_COLOR[p.quality]} title="Conexão"></span>
-						<span class="pname">{p.name}{p.local ? ' (você)' : ''}</span>
+						<span class="avatar" aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}<span class="dot" style:background={QUALITY_COLOR[p.quality]}></span></span>
+						<span class="pname">{p.name}<small>{p.local ? 'Você' : 'Participante'}</small></span>
 						<span class="media-indicators">
 							{#if p.screen}<span role="img" aria-label="Compartilhando tela"><Icon name="screen" size={15} /></span>{/if}
 							{#if p.camera}<span role="img" aria-label="Câmera ligada"><Icon name="camera" size={15} /></span>{/if}
-							{#if p.mic}<span role="img" aria-label="Microfone ligado"><Icon name="mic" size={15} /></span>{/if}
+							<span role="img" aria-label={p.mic ? 'Microfone ligado' : 'Microfone desligado'}><Icon name={p.mic ? 'mic' : 'mic-off'} size={15} /></span>
 						</span>
 					</div>
 					{#if p.screenAudio && !p.local}
+						<label class="volume-label">Áudio da tela
 						<input
 							type="range"
 							min="0"
@@ -274,40 +300,43 @@
 							title="Volume do áudio da tela"
 							aria-label={`Volume do áudio da tela de ${p.name}`}
 						/>
+						</label>
 					{/if}
 				{/each}
 			</aside>
 		{/if}
-
-		<nav class="controls" aria-label="Controles da sala" class:hidden={!controls} onfocusin={poke} onmouseenter={() => clearTimeout(hideTimer)}>
+		</main>
+		<footer class="room-footer" class:quiet={!controls} onfocusin={poke} onmouseenter={() => clearTimeout(hideTimer)} onmouseleave={poke}>
+		<div class="local-state"><span class="avatar small" aria-hidden="true">{name.trim().slice(0, 2).toLocaleUpperCase()}</span><span>{name}<small>{session.micOn ? 'Microfone ligado' : 'Microfone desligado'}</small></span></div>
+		<nav class="controls" aria-label="Controles da sala">
 			<div class="menu-anchor">
 				<button
 					class:on={session.screenOn}
 					onclick={() => (session?.screenOn ? toggleScreen() : (menu = !menu))}
-					title="Ctrl+Shift+S"
+					title="Compartilhar tela (Ctrl+Shift+S)"
 					aria-label={session.screenOn ? 'Parar de compartilhar tela' : 'Compartilhar tela'}
 					aria-pressed={session.screenOn}
 				>
-					<Icon name="screen" /> Tela
+					<Icon name="screen" size={20} /><span>{session.screenOn ? 'Parar tela' : 'Compartilhar'}</span>{#if !session.screenOn}<Icon name="chevron-down" size={13} />{/if}
 				</button>
 				{#if menu}
 					<div class="menu">
+						<p>Compartilhar sua tela</p>
 						{#each Object.entries(QUALITY) as [m, q] (m)}
 							<button onclick={() => toggleScreen(m as QualityMode)}>{q.label}</button>
 						{/each}
 					</div>
 				{/if}
 			</div>
-			<button class:on={session.cameraOn} onclick={toggleCamera} title="Ctrl+Shift+C" aria-pressed={session.cameraOn} aria-label={session.cameraOn ? 'Desligar câmera' : 'Ligar câmera'}><Icon name="camera" /> Câmera</button>
-			<button class:on={session.micOn} onclick={toggleMic} aria-pressed={session.micOn} aria-label={session.micOn ? 'Desligar microfone' : 'Ligar microfone'}><Icon name={session.micOn ? 'mic' : 'mic-off'} /> Mic</button>
+			<button class:on={session.cameraOn} onclick={toggleCamera} title="Câmera (Ctrl+Shift+C)" aria-pressed={session.cameraOn} aria-label={session.cameraOn ? 'Desligar câmera' : 'Ligar câmera'}><Icon name="camera" size={20} /><span>Câmera</span></button>
+			<button class:on={session.micOn} onclick={toggleMic} aria-pressed={session.micOn} aria-label={session.micOn ? 'Desligar microfone' : 'Ligar microfone'}><Icon name={session.micOn ? 'mic' : 'mic-off'} size={20} /><span>{session.micOn ? 'Microfone' : 'Sem áudio'}</span></button>
+			<span class="control-divider"></span>
 			<button class:on={peopleOpen} aria-label={`Participantes: ${session.people.length}`} aria-expanded={peopleOpen} onclick={() => (peopleOpen = !peopleOpen)}>
-				<Icon name="users" /> {session.people.length}
+				<Icon name="users" size={20} /><span class="people-count">{session.people.length}</span>
 			</button>
-			<button onclick={copyCode} aria-label={`Copiar código da sala ${code}`}><Icon name="copy" /><span class="mono">{code}</span></button>
-			<button onclick={toggleFullscreen} title="F / duplo clique" aria-label="Alternar tela cheia"><Icon name="fullscreen" /></button>
-			<button onclick={() => (settingsOpen = true)} aria-label="Configurações do servidor"><Icon name="settings" /></button>
-			<button class="leave" onclick={leave}><Icon name="exit" /> Sair</button>
+			<button class="leave" onclick={leave}><Icon name="exit" size={20} /><span>Sair</span></button>
 		</nav>
+		</footer>
 
 		{#if toast}<div class="toast" role="status">{toast}</div>{/if}
 		{#if settingsNotice}<div class="settings-notice" role="status">{settingsNotice}<button aria-label="Fechar aviso" onclick={() => (settingsNotice = '')}><Icon name="close" size={16} /></button></div>{/if}
@@ -460,21 +489,39 @@
 		font-family: ui-monospace, monospace;
 		letter-spacing: 0.1em;
 	}
-	.big {
-		font-size: 28px;
-		font-weight: 600;
-	}
 	.viewer {
 		position: fixed;
 		inset: 0;
 		display: grid;
-		grid-template: 1fr auto / 1fr auto;
-		background: #000;
-		color: #eee;
+		grid-template-rows: 72px minmax(0, 1fr) auto;
+		background: var(--bg);
+		color: var(--fg);
 	}
-	.cursor-hidden {
-		cursor: none;
+	.cursor-hidden { cursor: none; }
+	.room-header {
+		display: flex;
+		align-items: center;
+		gap: 28px;
+		padding: 0 28px;
+		border-bottom: 1px solid var(--border);
 	}
+	.room-header .brand { font-size: 29px; }
+	.room-identity, .room-tools { display: flex; align-items: center; gap: 12px; }
+	.room-label, .connection { color: var(--muted); font-size: 12px; }
+	.room-code { background: transparent; border: none; padding: 8px; font-size: 13px; }
+	.room-tools { margin-left: auto; gap: 8px; }
+	.room-tools .icon-button { background: transparent; border-color: transparent; }
+	.connection { display: flex; align-items: center; gap: 7px; margin-right: 14px; }
+	.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+	.dot.connected { background: var(--ok); }
+	.room-content {
+		min-height: 0;
+		display: grid;
+		grid-template: minmax(0, 1fr) auto / minmax(0, 1fr);
+		gap: 12px;
+		padding: 16px 20px;
+	}
+	.room-content.with-people { grid-template-columns: minmax(0, 1fr) 264px; }
 	.stage {
 		position: relative;
 		grid-area: 1 / 1;
@@ -482,193 +529,101 @@
 		display: grid;
 		place-items: center;
 		overflow: hidden;
+		background: color-mix(in srgb, var(--card) 45%, var(--bg));
+		border: 1px solid var(--border);
+		border-radius: 16px;
 	}
-	.stage video {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-	}
-	.mirror {
-		transform: scaleX(-1);
-	}
+	.stage:has(video) { background: #000; }
+	.stage video { width: 100%; height: 100%; object-fit: contain; }
+	.mirror { transform: scaleX(-1); }
 	.tag {
-		position: absolute;
-		left: 12px;
-		top: 12px;
-		background: #0008;
-		padding: 4px 10px;
-		border-radius: 8px;
-		font-size: 12px;
+		position: absolute; left: 16px; top: 16px;
+		display: flex; align-items: center; gap: 8px;
+		background: #111b; color: #fff;
+		padding: 8px 12px; border: 1px solid #ffffff20; border-radius: 8px; font-size: 12px;
 	}
-	.empty {
-		text-align: center;
-		color: #aaa;
+	.tag > span { color: #ccc; margin-left: 8px; }
+	.empty { text-align: center; padding: 24px; max-width: 420px; }
+	.empty-screen {
+		position: relative; display: grid; place-items: center;
+		width: 96px; height: 80px; margin: 0 auto 28px;
+		color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card));
+		border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-radius: 20px;
 	}
+	.empty-camera {
+		position: absolute; right: -12px; bottom: -10px; display: grid; place-items: center;
+		width: 38px; height: 34px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: var(--muted);
+	}
+	.empty h1 { font-size: clamp(24px, 3vw, 32px); }
+	.empty p { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 12px 0 26px; }
+	.invite-code {
+		width: 100%; max-width: 280px; margin: auto; padding: 14px 18px;
+		justify-content: space-between; text-align: left; background: var(--card); border-radius: 12px;
+	}
+	.invite-code > span { display: grid; gap: 7px; }
+	.invite-label { color: var(--muted); font-size: 11px; }
+	.invite-code strong { font-size: 21px; font-weight: 550; }
+	.invite-code > :global(svg) { color: var(--muted); }
+	.empty-note { display: block; color: var(--muted); font-size: 11px; margin-top: 18px; }
 	.banner {
-		position: absolute;
-		top: 12px;
-		left: 50%;
-		translate: -50% 0;
-		background: #000c;
-		color: #fff;
-		padding: 8px 14px;
-		border-radius: 10px;
-		display: flex;
-		gap: 10px;
-		align-items: center;
+		position: absolute; top: 16px; left: 50%; translate: -50% 0;
+		background: var(--card); color: var(--fg); padding: 10px 16px; border: 1px solid var(--border); border-radius: 10px;
+		display: flex; gap: 10px; align-items: center; font-size: 13px; max-width: calc(100% - 24px); z-index: 2;
 	}
-	.banner.audio {
-		top: 56px;
-		border: 1px solid var(--accent);
-	}
+	.banner.audio { top: 68px; border-color: var(--accent); }
 	.strip {
-		grid-area: 2 / 1;
-		display: flex;
-		gap: 8px;
-		padding: 8px;
-		overflow-x: auto;
-		background: #111;
-		position: relative;
+		grid-area: 2 / 1; display: flex; align-items: center; gap: 10px;
+		padding: 2px; overflow-x: auto; min-width: 0;
 	}
-	.strip.closed {
-		padding: 0;
-	}
-	.handle {
-		position: absolute;
-		right: 8px;
-		top: -28px;
-		padding: 2px 10px;
-		background: #000a;
-		border: none;
-		color: #fff;
-	}
+	.handle { flex: 0 0 32px; width: 32px; height: 40px; padding: 0; background: transparent; border-color: transparent; }
 	.thumb {
-		position: relative;
-		flex: 0 0 auto;
-		width: 192px;
-		aspect-ratio: 16 / 9;
-		padding: 0;
-		overflow: hidden;
-		background: #222;
-		border: 2px solid transparent;
+		position: relative; flex: 0 0 auto; width: 164px; aspect-ratio: 16 / 9;
+		padding: 0; overflow: hidden; background: #15151b; border: 2px solid transparent; border-radius: 10px;
 	}
-	.thumb.active {
-		border-color: var(--accent);
+	.thumb.active { border-color: var(--accent); }
+	.thumb video { width: 100%; height: 100%; object-fit: cover; }
+	.thumb span { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); font-size: 11px; background: #000b; padding: 3px 6px; border-radius: 5px; color: #fff; }
+	.people { grid-area: 1 / 2 / 3 / 3; min-height: 0; overflow-y: auto; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
+	.people-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+	.people-heading h2 { margin: 0; font-size: 14px; font-weight: 600; }
+	.people-heading h2 span { margin-left: 7px; color: var(--muted); font-size: 12px; font-weight: 400; }
+	.people-heading button { background: transparent; border: none; width: 30px; height: 30px; }
+	.people-help { color: var(--muted); font-size: 11px; margin: 2px 0 22px; }
+	.person { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--border); }
+	.avatar {
+		position: relative; width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center;
+		border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--fg); font-size: 11px; font-weight: 600;
 	}
-	.thumb video {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-	.thumb span {
-		position: absolute;
-		left: 6px;
-		bottom: 4px;
-		font-size: 11px;
-		background: #0009;
-		padding: 1px 6px;
-		border-radius: 6px;
-		color: #fff;
-	}
-	.people {
-		grid-area: 1 / 2 / 3 / 3;
-		width: 240px;
-		background: #141418;
-		padding: 12px;
-		overflow-y: auto;
-		display: grid;
-		align-content: start;
-		gap: 8px;
-	}
-	.people h3 {
-		margin: 0 0 4px;
-		font-size: 13px;
-		color: #aaa;
-	}
-	.person {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.pname {
-		flex: 1;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-	}
-	.controls {
-		position: fixed;
-		bottom: 16px;
-		left: 50%;
-		translate: -50% 0;
-		display: flex;
-		gap: 6px;
-		flex-wrap: wrap;
-		justify-content: center;
-		width: max-content;
-		max-width: calc(100% - 24px);
-		padding: 8px;
-		background: #18181ee6;
-		border: 1px solid #333;
-		border-radius: 14px;
-		transition: opacity 0.2s;
-		z-index: 10;
-	}
-	.controls.hidden {
-		opacity: 0;
-		pointer-events: none;
-	}
-	.controls.hidden:focus-within {
-		opacity: 1;
-		pointer-events: auto;
-	}
-	.controls:focus-within {
-		cursor: default;
-	}
-	.controls button {
-		background: #26262e;
-		border-color: #333;
-		color: #eee;
-		white-space: nowrap;
-	}
-	.controls button.on {
-		background: var(--accent);
-		border-color: var(--accent);
-	}
-	.controls .leave {
-		background: #a3243b;
-		border-color: #a3243b;
-	}
-	.menu-anchor {
-		position: relative;
-	}
-	.menu {
-		position: absolute;
-		bottom: calc(100% + 8px);
-		left: 0;
-		display: grid;
-		gap: 4px;
-		padding: 6px;
-		background: #18181e;
-		border: 1px solid #333;
-		border-radius: 12px;
-		width: max-content;
-	}
-	.toast {
-		position: fixed;
-		bottom: 80px;
-		left: 50%;
-		translate: -50% 0;
-		background: #000d;
-		color: #fff;
-		padding: 6px 12px;
-		border-radius: 8px;
-		z-index: 11;
+	.avatar .dot { position: absolute; bottom: -1px; right: -1px; border: 2px solid var(--card); box-sizing: content-box; }
+	.avatar.small { width: 34px; height: 34px; border-radius: 10px; }
+	.pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+	.pname small, .local-state small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+	.media-indicators { color: var(--muted); gap: 6px; }
+	.people input[type='range'] { width: 100%; accent-color: var(--accent); }
+	.room-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 88px; padding: 12px 28px; border-top: 1px solid var(--border); }
+	.local-state { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 12px; }
+	.local-state > span:last-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.controls { display: flex; align-items: center; gap: 8px; }
+	.controls button { min-height: 44px; padding: 10px 14px; background: var(--card); border-color: var(--border); font-size: 12px; white-space: nowrap; border-radius: 10px; }
+	.controls button.on { background: color-mix(in srgb, var(--accent) 18%, var(--card)); border-color: var(--accent); }
+	.controls .leave { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); color: var(--danger); }
+	.control-divider { height: 24px; width: 1px; background: var(--border); margin: 0 4px; }
+	.people-count { font-variant-numeric: tabular-nums; }
+	.menu-anchor { position: relative; }
+	.menu { position: absolute; bottom: calc(100% + 12px); left: 0; display: grid; gap: 4px; padding: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; width: max-content; z-index: 5; box-shadow: 0 12px 40px #0004; }
+	.menu p { color: var(--muted); font-size: 11px; margin: 6px 8px; }
+	.menu button { border-color: transparent; justify-content: flex-start; }
+	.quiet { opacity: 0; pointer-events: none; }
+	.quiet:focus-within { opacity: 1; pointer-events: auto; cursor: default; }
+	.room-header, .room-footer { transition: opacity 0.2s; }
+	.toast { position: fixed; bottom: 110px; left: 50%; translate: -50% 0; background: var(--card); color: var(--fg); padding: 12px 18px; border: 1px solid var(--border); border-radius: 10px; z-index: 11; max-width: calc(100% - 32px); font-size: 13px; }
+	@media (max-width: 850px) {
+		.local-state { display: none; }
+		.room-footer { justify-content: center; }
+		.room-header { padding: 0 20px; gap: 18px; }
+		.room-label { display: none; }
+		.room-content.with-people { grid-template-columns: minmax(0, 1fr); }
+		.people { grid-area: auto; position: fixed; right: 20px; top: 88px; bottom: 104px; width: min(280px, calc(100% - 40px)); z-index: 4; box-shadow: 0 16px 48px #0005; }
 	}
 	@media (max-width: 480px) {
 		.center {
@@ -677,21 +632,34 @@
 		.card {
 			padding: 22px;
 		}
-		.controls {
-			bottom: 12px;
-			gap: 4px;
-			padding: 6px;
-		}
-		.controls button {
-			padding: 9px;
-			font-size: 12px;
-		}
-		.people {
-			width: 180px;
-		}
+		.viewer { grid-template-rows: 62px minmax(0, 1fr) auto; }
+		.room-header { padding: 0 12px; gap: 12px; }
+		.room-header .brand { font-size: 25px; }
+		.room-code { font-size: 11px; padding: 6px 0; }
+		.room-tools { gap: 0; }
+		.connection { display: none; }
+		.room-content { padding: 10px; gap: 8px; }
+		.room-footer { padding: 12px 8px max(12px, env(safe-area-inset-bottom)); min-height: 80px; }
+		.controls { gap: 6px; width: 100%; justify-content: center; }
+		.controls button { padding: 10px; min-width: 42px; }
+		.controls button > span:not(.people-count) { display: none; }
+		.control-divider { margin: 0; }
+		.thumb { width: 128px; }
+		.empty { padding: 16px; }
+		.empty-screen { margin-bottom: 22px; width: 80px; height: 68px; }
+		.empty p { font-size: 12px; }
+		.people { top: 72px; right: 10px; bottom: 90px; }
 	}
+	@media (max-height: 600px) {
+		.empty-screen, .empty-note { display: none; }
+		.empty { padding: 16px; }
+		.empty p { margin: 8px 0 14px; }
+		.empty h1 { font-size: 24px; }
+		.invite-code { padding: 10px 16px; }
+	}
+	.volume-label { display: grid; gap: 8px; color: var(--muted); font-size: 11px; padding-bottom: 12px; }
 	@media (prefers-reduced-motion: reduce) {
-		.controls {
+		.room-header, .room-footer {
 			transition: none;
 		}
 	}

@@ -43,6 +43,12 @@ compatíveis com instalações existentes.
 A página inicial apresenta o projeto e mostra o comando para o seu sistema.
 `/join` abre a tela de criar/entrar em uma sala; links `/r/{code}` continuam diretos.
 
+Na sala, o cabeçalho reúne código, conexão e configurações; os controles de tela,
+câmera e microfone ficam separados das miniaturas. O painel de participantes
+permite ajustar o áudio de cada tela compartilhada. Em janelas pequenas, ele
+abre sobre o vídeo sem empurrar os controles. Alterar o servidor durante uma
+sessão só afeta a próxima entrada; não derruba a conexão atual.
+
 - **Linux / Omarchy:** o comando `curl` instala o plugin Quickshell da última
   release. A URL do servidor vem da página, e o segredo é configurado localmente.
 - **Windows:** o comando PowerShell baixa o instalador x64 da última release.
