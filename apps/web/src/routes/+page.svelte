@@ -64,7 +64,7 @@
 				</div>
 				<div class="terminal">
 					<span class="prompt" aria-hidden="true">{platform === 'linux' ? '$' : 'PS'}</span>
-					<code tabindex="0" aria-label="Comando de instalação">{command}</code>
+					<code>{command}</code>
 					<button class="copy" class:done={copied} onclick={copyCommand} aria-label="Copiar comando de instalação"><Icon name={copied ? 'check' : 'copy'} size={14} />{copied ? 'Copiado' : 'Copiar'}</button>
 				</div>
 				<p class="install-note" aria-live="polite">{copyError || (platform === 'linux' ? 'Plugin Quickshell + Chromium. No seu Omarchy, na sua barra.' : 'App nativo na bandeja. Instalador baixado da release do GitHub.')}</p>
