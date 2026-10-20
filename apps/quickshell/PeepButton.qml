@@ -112,7 +112,8 @@ Panel {
     updateStatus = ""
     var tag = "v" + latestVersion
     updateProcess.command = ["bash", "-c",
-      'set -o pipefail; curl --fail --silent --show-error --location --proto "=https" --proto-redir "=https" "https://github.com/EaeDave/peep/releases/download/$1/install.sh" | bash -s -- --update --version "$1"',
+      // A symlinked plugin is a development checkout: install.sh refuses to replace it.
+      'set -o pipefail; dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/peep"; if [ -L "$dir" ]; then echo "Instalação de desenvolvimento: atualize com git pull" >&2; exit 1; fi; curl --fail --silent --show-error --location --proto "=https" --proto-redir "=https" "https://github.com/EaeDave/peep/releases/download/$1/install.sh" | bash -s -- --update --version "$1"',
       "peep-update", tag]
     updateProcess.running = true
   }

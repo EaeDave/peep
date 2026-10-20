@@ -543,7 +543,9 @@
 		border-radius: 16px;
 	}
 	.stage:has(video) { background: #000; }
-	.stage video { width: 100%; height: 100%; object-fit: contain; }
+	/* Absolute: a % height inside the grid cell resolves to auto, so the video
+	   kept its 16:9 height and the stage clipped it on wide screens. */
+	.stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 	.mirror { transform: scaleX(-1); }
 	.tag {
 		position: absolute; left: 16px; top: 16px;

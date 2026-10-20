@@ -344,7 +344,9 @@ KeyboardPanel {
           Label {
             width: parent.width - updateAction.width - parent.spacing
             anchors.verticalCenter: parent.verticalCenter
+            // updateStatus wins: it carries the install error or "Reiniciando…".
             text: popup.updating ? "Atualizando para " + popup.latestVersion + "…"
+              : popup.latestVersion !== "" && popup.updateStatus !== "" ? popup.updateStatus
               : popup.latestVersion !== "" ? "Versão " + popup.latestVersion + " disponível"
               : "v" + popup.currentVersion + (popup.checkingUpdate ? " · verificando…" : popup.updateStatus !== "" ? " · " + popup.updateStatus : "")
             color: popup.latestVersion !== "" ? Commons.Color.accent : Commons.Color.foreground
