@@ -37,12 +37,12 @@ O LiveKit roda em `network_mode: host`, então o tráfego cai na chain `INPUT`.
 Regras inseridas **antes** do `REJECT` e persistidas:
 
 ```sh
-sudo iptables -I INPUT 5 -p tcp --dport 7881 -j ACCEPT -m comment --comment peep
-sudo iptables -I INPUT 5 -p udp --dport 3478 -j ACCEPT -m comment --comment peep
-sudo iptables -I INPUT 5 -p udp --dport 50000:60000 -j ACCEPT -m comment --comment peep
+sudo iptables -I INPUT 1 -p tcp --dport 7881 -m comment --comment peep -j ACCEPT
+sudo iptables -I INPUT 1 -p udp --dport 3478 -m comment --comment peep -j ACCEPT
+sudo iptables -I INPUT 1 -p udp --dport 50000:60000 -m comment --comment peep -j ACCEPT
 # containers (Traefik, room-api) → LiveKit no host: sinalização e TURN/TLS
-sudo iptables -I INPUT 5 -i br-+ -p tcp -m multiport --dports 7880,5349 -j ACCEPT -m comment --comment peep
-sudo iptables -I INPUT 5 -i docker0 -p tcp -m multiport --dports 7880,5349 -j ACCEPT -m comment --comment peep
+sudo iptables -I INPUT 1 -i br-+ -p tcp -m multiport --dports 7880,5349 -m comment --comment peep -j ACCEPT
+sudo iptables -I INPUT 1 -i docker0 -p tcp -m multiport --dports 7880,5349 -m comment --comment peep -j ACCEPT
 sudo netfilter-persistent save
 ```
 
