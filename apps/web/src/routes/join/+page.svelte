@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { createRoom, getRoom } from '#lib/api.ts';
 	import { absorbUrlParams, isFullCode, maskCode, normalizeServerUrl, settings } from '#lib/config.ts';
-	import { isTauri, openViewer } from '#lib/platform.ts';
+	import { checkUpdate, installUpdate, isTauri, onUpdateAvailable, openViewer, updateStatus } from '#lib/platform.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
 
@@ -17,6 +17,10 @@
 	let notice = $state('');
 	let nameInput = $state<HTMLInputElement>();
 	let codeInput = $state<HTMLInputElement>();
+	let version = $state('');
+	let available = $state<string | null>(null);
+	let updateState = $state<'idle' | 'checking' | 'current' | 'installing' | 'error'>('idle');
+	let updateError = $state('');
 
 	function readServer() {
 		configured = settings.configured;
@@ -34,7 +38,32 @@
 		readServer();
 		showSetup = !configured;
 		ready = true;
+		if (!isTauri) return;
+		void updateStatus().then(([v, a]) => ((version = v), (available = a)));
+		const unlisten = onUpdateAvailable((v) => (available = v));
+		return () => void unlisten.then((stop) => stop());
 	});
+
+	async function refreshUpdate() {
+		updateState = 'checking';
+		try {
+			[version, available] = await checkUpdate();
+			updateState = available ? 'idle' : 'current';
+		} catch {
+			updateState = 'error';
+			updateError = 'Não foi possível verificar.';
+		}
+	}
+
+	async function applyUpdate() {
+		updateState = 'installing';
+		try {
+			await installUpdate();
+		} catch (e) {
+			updateState = 'error';
+			updateError = String(e) || 'Falha ao atualizar.';
+		}
+	}
 
 	async function run(action: () => Promise<void>) {
 		error = '';
@@ -91,8 +120,8 @@
 
 <main class="join-page" class:desktop={isTauri}>
 	<section class="mini" aria-label="Peep">
-		<header>
-			<div class="brand"><img src="/favicon.svg" alt="" width="30" height="30" /><span>peep<span class="brand-dot">.</span></span></div>
+		<header data-tauri-drag-region={isTauri || undefined}>
+			<div class="brand" data-tauri-drag-region={isTauri || undefined}><img src="/favicon.svg" alt="" width="30" height="30" /><span>peep<span class="brand-dot">.</span></span></div>
 			<button class="settings-button" type="button" aria-label="Configurações do servidor" title="Configurações do servidor"
 				aria-pressed={showSetup} disabled={busy} onclick={() => { showSetup = !showSetup; error = ''; notice = ''; }}>
 				<Icon name="settings" size={18} />
@@ -133,6 +162,17 @@
 					<span title={configured ? 'Configuração salva neste dispositivo' : 'Configure o servidor antes de entrar'}>{configured ? serverLabel : 'Servidor não configurado'}</span>
 					<button type="button" disabled={busy} onclick={() => { showSetup = true; error = ''; notice = ''; }}>Alterar</button>
 				</div>
+				{#if isTauri && version}
+					<div class="app-version" aria-live="polite">
+						{#if available && updateState !== 'error'}
+							<span class="update-ready">Versão {available} disponível</span>
+							<button type="button" class="update-button" disabled={updateState === 'installing'} onclick={applyUpdate}>{updateState === 'installing' ? 'Atualizando…' : 'Atualizar'}</button>
+						{:else}
+							<span>v{version}{updateState === 'checking' ? ' · verificando…' : updateState === 'current' ? ' · atualizado' : updateState === 'error' ? ` · ${updateError}` : ''}</span>
+							<button type="button" class="check-button" aria-label="Verificar atualizações" title="Verificar atualizações" disabled={updateState === 'checking'} onclick={refreshUpdate}><Icon name="refresh" size={13} /></button>
+						{/if}
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</section>
@@ -142,6 +182,13 @@
 <style>
 	.join-page { min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; background: var(--bg); }
 	.mini { width: min(100%, 400px); border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: 0 16px 64px #00000018; overflow: hidden; }
+	.app-version { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--muted); font-size: 10px; }
+	.app-version span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.app-version button { margin-left: auto; border: none; background: transparent; color: var(--muted); padding: 3px; font-size: 10px; display: grid; place-items: center; }
+	.app-version button:hover:enabled { color: var(--fg); }
+	.update-ready { color: var(--ok); }
+	.app-version .update-button { color: var(--accent); font-weight: 600; }
+	.desktop .brand > * { pointer-events: none; }
 	header { display: flex; align-items: center; justify-content: space-between; padding: 22px 26px 17px; border-bottom: 1px solid var(--border); }
 	.brand { display: flex; align-items: center; gap: 9px; color: var(--fg); font-size: 24px; font-weight: 650; letter-spacing: -.8px; }
 	.brand img { border-radius: 9px; }

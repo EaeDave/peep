@@ -16,7 +16,7 @@
 				"url": "join",
 				"title": "Peep",
 				"width": 320,
-				"height": 440,
+				"height": 480,
 				"resizable": false,
 				"decorations": false,
 				"alwaysOnTop": true,
@@ -31,10 +31,18 @@
 	},
 	"bundle": {
 		"active": true,
+		"createUpdaterArtifacts": true,
 		"targets": ["msi", "nsis"],
 		"icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
 		"windows": {
 			"webviewInstallMode": { "type": "downloadBootstrapper" }
+		}
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNBNkJDNTA2QTE0REU5QzUKUldURjZVMmhCc1ZyT2l0VWk3d2lXVUZ3OHhXQmlNK3owQjVHc2JzcHd2cTQvNkkycDBDcHFoTFoK",
+			"endpoints": ["https://github.com/EaeDave/peep/releases/latest/download/latest.json"],
+			"windows": { "installMode": "passive" }
 		}
 	}
 }

@@ -57,6 +57,9 @@ jobs:
           # Public room-api URL baked into the bundled UI (repo variable, not a secret).
           # Empty → the app asks for it on first run.
           VITE_API_URL: ${{ vars.PEEP_API_URL }}
+          # Signs the updater artifacts; the public key lives in tauri.conf.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
@@ -66,6 +69,8 @@ jobs:
             **Linux (Omarchy):** baixe `peep-omarchy-plugin.tar.gz` e siga `apps/quickshell/README.md`.
           releaseDraft: false
           prerelease: false
+          # latest.json (read by the in-app updater) points at the NSIS setup.
+          updaterJsonPreferNsis: true
 
   omarchy-plugin:
     needs: windows

@@ -59,6 +59,24 @@ sessão só afeta a próxima entrada; não derruba a conexão atual.
   Os instaladores resolvem a release pela API do GitHub e usam o endereço
   versionado do artefato, evitando redirecionamentos `latest/download` em cache.
 
+### Atualizações
+
+Os dois clientes mostram a versão atual no rodapé do popup e procuram uma nova
+release ao iniciar e a cada 5 horas. O ícone de recarregar força a busca. Quando
+há versão nova, o rodapé oferece **Atualizar**; nada é instalado sem esse clique.
+
+- **Windows:** usa o updater do Tauri. A release publica `latest.json` e o setup
+  NSIS assinado com a chave do updater (secret `TAURI_SIGNING_PRIVATE_KEY`; a
+  chave pública fica em `tauri.conf.json`). Pacotes sem assinatura válida são
+  recusados. Não atualiza com uma sala aberta.
+- **Omarchy:** baixa o `install.sh` da release nova e roda
+  `install.sh --update --version vX.Y.Z`, que troca o plugin preservando a
+  configuração e depois reinicia a barra. Instalações em modo desenvolvimento
+  (link simbólico) não são substituídas.
+
+Guarde a chave privada do updater fora do repositório: sem ela, versões futuras
+não conseguem atualizar os apps Windows já instalados.
+
 ## Desenvolvimento
 
 ```sh

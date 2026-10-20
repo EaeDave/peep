@@ -1,14 +1,19 @@
 // Peep — Windows tray client. The UI is the bundled apps/web build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
+};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_positioner::{Position, WindowExt};
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 const POPUP: &str = "popup";
 const VIEWER: &str = "viewer";
@@ -16,19 +21,92 @@ const VIEWER: &str = "viewer";
 /// When the popup was last hidden by losing focus. Clicking the tray icon
 /// blurs the popup first; without this the click would re-open it at once.
 static BLUR_HIDDEN_AT: AtomicU64 = AtomicU64::new(0);
+/// Placed next to the tray once; afterwards the popup stays where the user dragged it.
+static PLACED: AtomicBool = AtomicBool::new(false);
+
+const UPDATE_EVERY: Duration = Duration::from_secs(5 * 60 * 60);
+
+/// Update found by the last check, waiting for the user to install it.
+#[derive(Default)]
+struct PendingUpdate(Mutex<Option<Update>>);
 
 fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
+/// Keeps the popup inside the monitor's work area (above/beside the taskbar).
+fn clamp_to_screen(w: &WebviewWindow) {
+    let (Ok(Some(m)), Ok(pos), Ok(size)) = (w.current_monitor(), w.outer_position(), w.outer_size())
+    else {
+        return;
+    };
+    let area = m.work_area();
+    let max_x = area.position.x + area.size.width as i32 - size.width as i32;
+    let max_y = area.position.y + area.size.height as i32 - size.height as i32;
+    let x = pos.x.clamp(area.position.x, max_x.max(area.position.x));
+    let y = pos.y.clamp(area.position.y, max_y.max(area.position.y));
+    if (x, y) != (pos.x, pos.y) {
+        let _ = w.set_position(PhysicalPosition::new(x, y));
+    }
+}
+
 fn show_popup(app: &AppHandle) {
     let Some(w) = app.get_webview_window(POPUP) else { return };
-    // Tray position is only known after a tray event; fall back to the corner.
-    if w.as_ref().window().move_window(Position::TrayBottomCenter).is_err() {
-        let _ = w.as_ref().window().move_window(Position::BottomRight);
+    if !PLACED.load(Ordering::Relaxed) {
+        // TrayCenter opens above the tray icon (Windows taskbar at the bottom).
+        // Tray position is only known after a tray event; fall back to the corner.
+        if w.as_ref().window().move_window(Position::TrayCenter).is_ok() {
+            PLACED.store(true, Ordering::Relaxed);
+        } else {
+            let _ = w.as_ref().window().move_window(Position::BottomRight);
+        }
     }
+    clamp_to_screen(&w);
     let _ = w.show();
     let _ = w.set_focus();
+}
+
+/// Checks the release feed; caches the update and notifies the popup.
+async fn find_update(app: &AppHandle) -> Result<Option<String>, String> {
+    let update = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    let version = update.as_ref().map(|u| u.version.clone());
+    *app.state::<PendingUpdate>().0.lock().unwrap() = update;
+    if let Some(v) = &version {
+        let _ = app.emit("update-available", v);
+        if let Some(tray) = app.tray_by_id("peep") {
+            let _ = tray.set_tooltip(Some(format!("Peep — versão {v} disponível")));
+        }
+    }
+    Ok(version)
+}
+
+fn current_version(app: &AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+/// Current version and the pending update found by the background check.
+#[tauri::command]
+fn update_status(app: AppHandle) -> (String, Option<String>) {
+    let pending = app.state::<PendingUpdate>().0.lock().unwrap().as_ref().map(|u| u.version.clone());
+    (current_version(&app), pending)
+}
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<(String, Option<String>), String> {
+    let available = find_update(&app).await?;
+    Ok((current_version(&app), available))
+}
+
+/// Downloads, verifies the signature, installs and restarts. Never during a room.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    if app.get_webview_window(VIEWER).is_some() {
+        return Err("Saia da sala antes de atualizar.".into());
+    }
+    let update = app.state::<PendingUpdate>().0.lock().unwrap().take();
+    let update = update.ok_or("Nenhuma atualização disponível.")?;
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    app.restart();
 }
 
 fn toggle_popup(app: &AppHandle) {
@@ -111,7 +189,9 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_popup(app)))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_positioner::init())
-        .invoke_handler(tauri::generate_handler![open_viewer])
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(PendingUpdate::default())
+        .invoke_handler(tauri::generate_handler![open_viewer, update_status, check_update, install_update])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Abrir", true, None::<&str>)?;
             let autostart = CheckMenuItem::with_id(
@@ -171,6 +251,13 @@ fn main() {
                     let _ = p.hide();
                 }
                 _ => {}
+            });
+
+            // Checks for a new release at startup and every 5 hours.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || loop {
+                let _ = tauri::async_runtime::block_on(find_update(&handle));
+                std::thread::sleep(UPDATE_EVERY);
             });
             Ok(())
         })

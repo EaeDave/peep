@@ -17,6 +17,13 @@ KeyboardPanel {
   property bool busy: false
   property bool saving: false
   property bool editingSettings: false
+  property string currentVersion: ""
+  property string latestVersion: ""
+  property bool checkingUpdate: false
+  property bool updating: false
+  property string updateStatus: ""
+  signal checkUpdateRequested()
+  signal installUpdateRequested()
   signal joinRequested(string code, string name)
   signal createRequested(string name)
   signal settingsOpened()
@@ -325,6 +332,35 @@ KeyboardPanel {
             focusable: true
             enabled: !popup.saving
             onClicked: popup.cancelSettings()
+            onActiveFocusChanged: if (activeFocus) scroll.reveal(this)
+          }
+        }
+
+        // Version + manual check; becomes "Atualizar" when a release is newer.
+        Row {
+          width: parent.width
+          visible: !popup.editingSettings && popup.currentVersion !== ""
+          spacing: Style.space(8)
+          Label {
+            width: parent.width - updateAction.width - parent.spacing
+            anchors.verticalCenter: parent.verticalCenter
+            text: popup.updating ? "Atualizando para " + popup.latestVersion + "…"
+              : popup.latestVersion !== "" ? "Versão " + popup.latestVersion + " disponível"
+              : "v" + popup.currentVersion + (popup.checkingUpdate ? " · verificando…" : popup.updateStatus !== "" ? " · " + popup.updateStatus : "")
+            color: popup.latestVersion !== "" ? Commons.Color.accent : Commons.Color.foreground
+            opacity: popup.latestVersion !== "" ? 1 : 0.6
+            elide: Text.ElideRight
+            font.pixelSize: Style.font.bodySmall
+          }
+          Button {
+            id: updateAction
+            text: popup.latestVersion !== "" ? "Atualizar" : ""
+            iconText: popup.latestVersion !== "" ? "" : "\uf021"
+            tooltipText: popup.latestVersion !== "" ? "Instalar e reiniciar a barra" : "Verificar atualizações"
+            Accessible.name: tooltipText
+            focusable: true
+            enabled: !popup.checkingUpdate && !popup.updating
+            onClicked: popup.latestVersion !== "" ? popup.installUpdateRequested() : popup.checkUpdateRequested()
             onActiveFocusChanged: if (activeFocus) scroll.reveal(this)
           }
         }

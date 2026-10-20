@@ -37,6 +37,86 @@ Panel {
     }
   }
 
+  // --- Updates: GitHub release check at startup and every 5 hours. ---
+  property string currentVersion: ""
+  property string latestVersion: ""
+  property bool checkingUpdate: false
+  property bool updating: false
+  property string updateStatus: ""
+  readonly property bool updateAvailable: newerVersion(latestVersion, currentVersion)
+
+  property FileView manifestFile: FileView {
+    path: Qt.resolvedUrl("manifest.json")
+    printErrors: false
+    onLoaded: {
+      try { root.currentVersion = String(JSON.parse(text()).version || "") } catch (e) { root.currentVersion = "" }
+    }
+  }
+
+  property Timer updateTimer: Timer {
+    interval: 5 * 60 * 60 * 1000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.checkUpdate(false)
+  }
+
+  // Downloads the installer of that exact release and swaps the plugin in place.
+  property Process updateProcess: Process {
+    stderr: StdioCollector { id: updateErr }
+    onExited: function(exitCode, exitStatus) {
+      root.updating = false
+      if (exitCode === 0 && exitStatus === 0) {
+        root.updateStatus = "Reiniciando…"
+        Quickshell.execDetached(["omarchy-restart-shell"])
+      } else {
+        var lines = updateErr.text.trim().split("\n")
+        root.updateStatus = lines[lines.length - 1] || "Falha ao atualizar"
+      }
+    }
+  }
+
+  function newerVersion(a, b) {
+    if (!/^\d+\.\d+\.\d+$/.test(a) || !/^\d+\.\d+\.\d+$/.test(b)) return false
+    var x = a.split(".").map(Number), y = b.split(".").map(Number)
+    for (var i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]
+    return false
+  }
+
+  function checkUpdate(manual) {
+    if (checkingUpdate || updating) return
+    checkingUpdate = true
+    if (manual) updateStatus = ""
+    var xhr = new XMLHttpRequest()
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== XMLHttpRequest.DONE) return
+      checkingUpdate = false
+      try {
+        if (xhr.status !== 200) throw new Error()
+        var tag = String(JSON.parse(xhr.responseText).tag_name || "")
+        if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error()
+        latestVersion = tag.slice(1)
+        if (manual) updateStatus = updateAvailable ? "" : "atualizado"
+      } catch (e) {
+        if (manual) updateStatus = "não foi possível verificar"
+      }
+    }
+    xhr.open("GET", "https://api.github.com/repos/EaeDave/peep/releases/latest")
+    xhr.setRequestHeader("Accept", "application/vnd.github+json")
+    xhr.send()
+  }
+
+  function installUpdate() {
+    if (updating || !updateAvailable) return
+    updating = true
+    updateStatus = ""
+    var tag = "v" + latestVersion
+    updateProcess.command = ["bash", "-c",
+      'set -o pipefail; curl --fail --silent --show-error --location --proto "=https" --proto-redir "=https" "https://github.com/EaeDave/peep/releases/download/$1/install.sh" | bash -s -- --update --version "$1"',
+      "peep-update", tag]
+    updateProcess.running = true
+  }
+
   property FileView cfgFile: FileView {
     path: root.cfgPath
     watchChanges: true
@@ -208,7 +288,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: "\uf108"
-    tooltipText: "Peep"
+    tooltipText: root.updateAvailable ? "Peep — versão " + root.latestVersion + " disponível" : "Peep"
     onPressed: root.toggle()
   }
 
@@ -226,6 +306,13 @@ Panel {
     busy: root.busy || root.saving
     saving: root.saving
     defaults: root.defaults
+    currentVersion: root.currentVersion
+    latestVersion: root.updateAvailable ? root.latestVersion : ""
+    checkingUpdate: root.checkingUpdate
+    updating: root.updating
+    updateStatus: root.updateStatus
+    onCheckUpdateRequested: root.checkUpdate(true)
+    onInstallUpdateRequested: root.installUpdate()
     onSettingsOpened: root.openSettings()
     onSettingsSaveRequested: function(api, web, key) { root.saveSettings(api, web, key) }
     onJoinRequested: function(code, name) { root.join(code, name) }
