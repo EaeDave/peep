@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Icon from '#lib/Icon.svelte';
 
 	const repo = 'https://github.com/EaeDave/peep';
 	let platform = $state<'linux' | 'windows'>('linux');
@@ -48,7 +49,7 @@
 
 	<main>
 		<section class="intro" aria-labelledby="headline">
-			<div class="eyebrow"><span></span> FEITO PARA COMPARTILHAR. NÃO PARA COMPLICAR.</div>
+			<div class="eyebrow"><span></span> Feito para compartilhar, não para complicar</div>
 			<h1 id="headline">Sua tela.<br />Sua galera.<br /><em>Só isso.</em></h1>
 			<p class="lead">Uma partida, uma ideia, aquele bug impossível.<br class="desktop-break" /> Abra uma sala e mostre. Sem conta, sem feed, sem distração.</p>
 			<div class="facts"><span>Tela + câmera</span><i></i><span>Até 1080p60</span><i></i><span>Open source</span></div>
@@ -63,8 +64,8 @@
 				</div>
 				<div class="terminal">
 					<span class="prompt" aria-hidden="true">{platform === 'linux' ? '$' : 'PS'}</span>
-					<code>{command}</code>
-					<button class="copy" onclick={copyCommand} aria-label="Copiar comando de instalação">{copied ? 'Copiado!' : 'Copiar'}</button>
+					<code tabindex="0" aria-label="Comando de instalação">{command}</code>
+					<button class="copy" class:done={copied} onclick={copyCommand} aria-label="Copiar comando de instalação"><Icon name={copied ? 'check' : 'copy'} size={14} />{copied ? 'Copiado' : 'Copiar'}</button>
 				</div>
 				<p class="install-note" aria-live="polite">{copyError || (platform === 'linux' ? 'Plugin Quickshell + Chromium. No seu Omarchy, na sua barra.' : 'App nativo na bandeja. Instalador baixado da release do GitHub.')}</p>
 			</section>
@@ -82,7 +83,7 @@
 				<div class="room-bottom"><span class="avatar">v</span><span>você está entre amigos</span><span class="room-code">KJ7-29F</span></div>
 			</div>
 			<div class="floating-note"><span class="note-icon" aria-hidden="true">↗</span><div><strong>Entrou. Compartilhou.</strong><span>A sala some quando todo mundo sai.</span></div></div>
-			<div class="preview-caption"><span>01 / CRIE UMA SALA</span><span>02 / MANDE O CÓDIGO</span><span>03 / DÊ O PLAY</span></div>
+			<div class="preview-caption"><span>1. Crie uma sala</span><span>2. Mande o código</span><span>3. Dê o play</span></div>
 		</aside>
 	</main>
 
@@ -105,7 +106,7 @@
 	.github { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #ffffff16; border-radius: 12px; }
 	main { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 70px; padding: 88px 0 82px; }
 	.intro { min-width: 0; }
-	.eyebrow { display: flex; align-items: center; gap: 9px; color: #bfb0d4; font-size: 9px; letter-spacing: 1.6px; font-weight: 600; }
+	.eyebrow { display: flex; align-items: center; gap: 9px; color: #bfb0d4; font-size: 12px; font-weight: 500; }
 	.eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 14px #b7f3d044; }
 	h1 { font-size: clamp(56px, 6.2vw, 82px); line-height: .99; letter-spacing: -5px; font-weight: 750; margin: 27px 0; }
 	h1 em { color: var(--mint); font-style: normal; }
@@ -121,9 +122,15 @@
 	.install-top a { font-size: 10px; color: #a59bb5; white-space: nowrap; }
 	.terminal { display: flex; align-items: center; gap: 10px; padding: 18px 16px 12px; }
 	.prompt { color: #a692c1; font-family: ui-monospace, monospace; font-size: 11px; }
-	code { min-width: 0; flex: 1; font-size: 11px; color: #ddd4ec; white-space: nowrap; overflow-x: auto; padding: 6px 0; scrollbar-width: thin; }
-	.copy { color: #c1e4d1; border: 1px solid #b7f3d029; background: #b7f3d00a; font-size: 10px; padding: 7px 10px; border-radius: 6px; }
-	.copy:hover { background: #b7f3d01a; }
+	code { min-width: 0; flex: 1; font-size: 11.5px; color: #ddd4ec; white-space: nowrap; overflow-x: auto; padding: 8px 0; scrollbar-width: none; mask-image: linear-gradient(90deg, black calc(100% - 40px), transparent); outline: none; }
+	code::-webkit-scrollbar { display: none; }
+	.terminal { margin: 12px 12px 10px; padding: 6px 6px 6px 14px; background: #0d0b13; border: 1px solid #ffffff0d; border-radius: 9px; }
+	.terminal:focus-within { border-color: #a98ada70; }
+	.copy { display: inline-flex; align-items: center; gap: 6px; color: #e9e0f5; border: 1px solid #a98ada40; background: #a38abb1f; font-size: 11px; font-weight: 500; padding: 8px 12px; border-radius: 7px; transition: background .15s, border-color .15s; }
+	.copy:hover { background: #a38abb33; border-color: #a98ada70; }
+	.copy.done { color: var(--mint); border-color: #b7f3d040; background: #b7f3d012; }
+	.platforms button, .copy, .install-top a { cursor: pointer; }
+	.platforms button:focus-visible, .copy:focus-visible, .install a:focus-visible { outline: 2px solid #a98ada; outline-offset: 2px; }
 	.install-note { font-size: 10px; color: #877c98; margin: 0; padding: 0 16px 14px; }
 	.alternative { margin: 15px 0 0; font-size: 10px; color: #80758f; }
 	.alternative a { color: #b8acc9; margin-left: 4px; }
@@ -149,14 +156,14 @@
 	.floating-note div { display: grid; gap: 4px; }
 	.floating-note strong { font-size: 11px; font-weight: 600; }
 	.floating-note div span { font-size: 9px; color: #a292b2; }
-	.preview-caption { display: flex; justify-content: space-between; gap: 8px; margin-top: 56px; font-size: 7px; letter-spacing: 1px; color: #776885; }
+	.preview-caption { display: flex; justify-content: space-between; gap: 8px; margin-top: 56px; font-size: 11px; color: #8a7c99; }
 	footer { display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 25px 0; border-top: 1px solid var(--line); color: #a79ab7; font-size: 11px; }
 	footer p { margin: 0; }
 	footer p span { color: #6e607d; }
 	footer div { display: flex; gap: 14px; font-size: 10px; }
 	.footer-dot { color: #53435f; }
 	@media (min-width: 1450px) { main { padding-top: 110px; padding-bottom: 110px; } }
-	@media (max-width: 1000px) { main { gap: 35px; } h1 { font-size: 66px; letter-spacing: -4px; } .eyebrow { font-size: 8px; letter-spacing: 1px; } .floating-note { right: -5px; } .preview-caption { font-size: 6px; letter-spacing: .5px; } }
+	@media (max-width: 1000px) { main { gap: 35px; } h1 { font-size: 66px; letter-spacing: -4px; } .floating-note { right: -5px; } .preview-caption { font-size: 10px; } }
 	@media (max-width: 760px) { .landing { padding: 0 24px; } header { height: 80px; } main { grid-template-columns: 1fr; padding: 55px 0 35px; gap: 35px; } .intro { max-width: 530px; } h1 { font-size: clamp(58px, 12vw, 76px); } .preview { max-width: 430px; width: 90%; margin: 0 auto; padding-bottom: 20px; } .floating-note { bottom: 30px; } .preview-caption { margin-top: 50px; } footer { align-items: start; flex-direction: column; font-size: 10px; } }
-	@media (max-width: 390px) { .landing { padding: 0 18px; } nav { gap: 12px; } .browser-link { font-size: 11px; } .eyebrow { font-size: 7px; } .lead { font-size: 14px; } .terminal { padding-left: 12px; padding-right: 12px; gap: 7px; } code { font-size: 10px; } .desktop-break { display: none; } }
+	@media (max-width: 390px) { .landing { padding: 0 18px; } nav { gap: 12px; } .browser-link { font-size: 11px; } .eyebrow { font-size: 11px; } .lead { font-size: 14px; } .terminal { padding-left: 12px; gap: 7px; } code { font-size: 10px; } .desktop-break { display: none; } }
 </style>
