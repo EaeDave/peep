@@ -9,3 +9,4 @@ target/
 .DS_Store
 apps/desktop/src-tauri/gen/
 .codegraph/
+apps/quickshell/server-defaults.json

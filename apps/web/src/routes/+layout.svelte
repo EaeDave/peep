@@ -26,6 +26,9 @@
 				--fg: #18181f;
 				--muted: #6b6b78;
 				--border: #e1e1e8;
+				--accent: #6748d3;
+				--danger: #b72346;
+				--ok: #16734b;
 				color-scheme: light;
 			}
 		}
@@ -71,6 +74,12 @@
 		button:disabled {
 			opacity: 0.5;
 			cursor: default;
+		}
+		button:focus-visible,
+		a:focus-visible,
+		input:focus-visible {
+			outline: 2px solid var(--accent);
+			outline-offset: 3px;
 		}
 		button.primary {
 			background: var(--accent);

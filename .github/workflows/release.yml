@@ -72,6 +72,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Bundle public server defaults
+        env:
+          PEEP_API_URL: ${{ vars.PEEP_API_URL }}
+          PEEP_WEB_URL: ${{ vars.PEEP_WEB_URL }}
+        run: |
+          jq -n --arg api "$PEEP_API_URL" --arg web "$PEEP_WEB_URL" \
+            '{apiUrl: $api, webUrl: $web}' > apps/quickshell/server-defaults.json
       - name: Package Omarchy/Quickshell plugin
         run: tar -czf peep-omarchy-plugin.tar.gz --transform 's,^apps/quickshell,peep,' apps/quickshell
       - name: Attach to release

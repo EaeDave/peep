@@ -17,7 +17,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 		throw new ApiError('Sem conexão com o servidor');
 	}
 	if (res.ok) return res.json();
-	if (res.status === 401) throw new ApiError('Segredo inválido');
+	if (res.status === 401) throw new ApiError('Chave de acesso ao servidor inválida. Abra as configurações para corrigi-la.');
 	if (res.status === 404) throw new ApiError('Sala não existe');
 	if (res.status === 429) throw new ApiError('Muitas tentativas, aguarde um minuto');
 	const msg = await res

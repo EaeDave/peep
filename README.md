@@ -20,8 +20,12 @@ Especificação completa: [`docs/PRD.md`](docs/PRD.md).
 ## Segredos
 
 Nada sensível fica no repositório. Servidor: variáveis de ambiente
-(`infra/.env.example`). Clientes: o segredo de convite é digitado na primeira
-execução (Windows/web) ou lido de `~/.config/peep/config.json` (Linux).
+(`infra/.env.example`). A **chave de acesso ao servidor** é fornecida por quem
+hospeda o Peep; não é o código de uma sala. A engrenagem permite alterar a chave
+e a URL da API no Windows/web, além da URL do site no Omarchy, sem reinstalar.
+Somente **Salvar** aplica as alterações; **Cancelar** preserva a configuração.
+Os nomes técnicos `INVITE_SECRET`, `peep.secret` e `inviteSecret` continuam
+compatíveis com instalações existentes.
 
 ## Deploy e releases
 
@@ -31,6 +35,8 @@ execução (Windows/web) ou lido de `~/.config/peep/config.json` (Linux).
   o GitHub Actions gera os instaladores Windows (`.msi`/`.exe`) no
   `windows-latest` e anexa o plugin Linux à release. Commits comuns não geram build.
   A URL pública da API embutida no app vem da variável de repositório `PEEP_API_URL`.
+  O plugin recebe também `PEEP_WEB_URL`. As URLs públicas vêm preenchidas por
+  padrão; uma configuração personalizada salva no dispositivo tem prioridade.
 
 ## Instalação dos clientes
 
@@ -54,5 +60,17 @@ cd apps/api && go test ./...                 # API
 cd apps/web && npm ci && npm run check       # frontend
 cd apps/web && VITE_API_URL=http://localhost:8080 npm run dev
 ```
+
+### Skills de interface
+
+As skills ficam versionadas no próprio repositório em `.agents/skills/`:
+
+- [`frontend-design`](.agents/skills/frontend-design/SKILL.md), da Anthropic:
+  direção visual, tipografia e hierarquia.
+- [`web-design-guidelines`](.agents/skills/web-design-guidelines/SKILL.md), da Vercel:
+  revisão de acessibilidade, foco, formulários e interação.
+
+`skills-lock.json` registra as origens e os hashes instalados. O frontend
+continua em Svelte, com CSS escopado e ícones SVG compartilhados.
 
 Licença: [MIT](LICENSE).

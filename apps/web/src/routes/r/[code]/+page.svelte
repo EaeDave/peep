@@ -3,15 +3,20 @@
 	import { page } from '$app/state';
 	import { ConnectionQuality, type Track } from 'livekit-client';
 	import { joinRoom } from '#lib/api.ts';
-	import { absorbUrlParams, maskCode, settings } from '#lib/config.ts';
+	import { absorbUrlParams, maskCode, normalizeServerUrl, settings } from '#lib/config.ts';
 	import { QUALITY, type QualityMode, Session } from '#lib/livekit/session.svelte.ts';
 	import { leaveViewer } from '#lib/platform.ts';
+	import Icon from '#lib/Icon.svelte';
+	import ServerSettings from '#lib/ServerSettings.svelte';
 
 	const code = maskCode(page.params.code ?? '');
 	let session = $state<Session | null>(null);
-	let needName = $state(false);
+	let needName = $state(true);
 	let name = $state('');
-	let secret = $state('');
+	let settingsOpen = $state(false);
+	let settingsNotice = $state('');
+	let connecting = $state(false);
+	let destroyed = false;
 	let error = $state('');
 	let toast = $state('');
 	let mode = $state<QualityMode>('jogo');
@@ -24,28 +29,63 @@
 	onMount(() => {
 		absorbUrlParams();
 		name = settings.name;
-		secret = settings.secret;
-		if (name && settings.configured) connect();
-		else needName = true;
+		if (!validConfig()) settingsOpen = true;
+		else if (name) connect();
 		poke();
 	});
 
-	onDestroy(() => session?.room.disconnect());
+	onDestroy(() => {
+		destroyed = true;
+		clearTimeout(hideTimer);
+		void session?.room.disconnect();
+	});
+
+	function validConfig() {
+		try {
+			normalizeServerUrl(settings.apiUrl);
+			return settings.configured;
+		} catch {
+			return false;
+		}
+	}
+
+	function savedSettings() {
+		settingsOpen = false;
+		settingsNotice = session
+			? 'Configurações salvas. Serão usadas na próxima entrada; esta sala não mudou.'
+			: 'Configurações salvas. Você já pode entrar na sala.';
+	}
 
 	async function connect() {
+		if (connecting || destroyed) return;
+		if (!validConfig()) {
+			settingsOpen = true;
+			return;
+		}
+		connecting = true;
 		error = '';
+		settingsNotice = '';
 		settings.name = name;
-		if (secret) settings.secret = secret;
 		needName = false;
+		const previous = session;
+		session = null;
+		let next: Session | null = null;
 		try {
+			await previous?.room.disconnect();
 			const { token, url } = await joinRoom(code, settings.name);
-			const s = new Session();
-			session = s;
-			await s.connect(url, token);
+			if (destroyed) return;
+			next = new Session();
+			session = next;
+			await next.connect(url, token);
+			if (destroyed) await next.room.disconnect();
 		} catch (e) {
-			session?.room.disconnect();
-			session = null;
-			error = (e as Error).message || 'Falha ao conectar';
+			await next?.room.disconnect();
+			if (!destroyed) {
+				session = null;
+				error = (e as Error).message || 'Falha ao conectar';
+			}
+		} finally {
+			connecting = false;
 		}
 	}
 
@@ -90,11 +130,11 @@
 	function poke() {
 		controls = true;
 		clearTimeout(hideTimer);
-		hideTimer = setTimeout(() => !menu && (controls = false), 3000);
+		hideTimer = setTimeout(() => !menu && !settingsOpen && (controls = false), 3000);
 	}
 
 	function onKey(e: KeyboardEvent) {
-		if ((e.target as HTMLElement).tagName === 'INPUT' || !session) return;
+		if (settingsOpen || (e.target as HTMLElement).closest('input, textarea, select') || !session) return;
 		const k = e.key.toLowerCase();
 		if (e.ctrlKey && e.shiftKey && k === 's') {
 			e.preventDefault();
@@ -132,16 +172,19 @@
 				connect();
 			}}
 		>
-			<h2>Sala <span class="mono">{code}</span></h2>
-			{#if error}<p class="error">{error}</p>{/if}
-			<label>Nome <input bind:value={name} maxlength="24" required /></label>
-			{#if !settings.configured}
-				<label>
-					Segredo de convite <input bind:value={secret} type="password" required />
-				</label>
-			{/if}
-			<button class="primary" type="submit">Entrar</button>
-			<button type="button" onclick={leaveViewer}>Voltar</button>
+			<header class="setup-header">
+				<span class="brand">peep<span>.</span></span>
+				<button class="icon-button" type="button" aria-label="Configurações do servidor" onclick={() => (settingsOpen = true)}><Icon name="settings" /></button>
+			</header>
+			<div>
+				<h1>Entrar na sala</h1>
+				<p class="setup-help">Você vai entrar na sala <strong class="mono">{code}</strong>.</p>
+			</div>
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
+			{#if settingsNotice}<p class="notice" role="status">{settingsNotice}</p>{/if}
+			<label>Seu nome <input bind:value={name} maxlength="24" autocomplete="nickname" required /></label>
+			<button class="primary" type="submit" disabled={connecting}>Entrar na sala <Icon name="arrow-right" /></button>
+			<button type="button" onclick={leaveViewer}><Icon name="arrow-left" /> Voltar</button>
 		</form>
 	</div>
 {:else if session}
@@ -175,15 +218,15 @@
 			{/if}
 			{#if session.audioBlocked}
 				<button class="banner audio" onclick={() => session?.room.startAudio()}>
-					🔊 Clique para ativar o áudio
+					Clique para ativar o áudio
 				</button>
 			{/if}
 		</section>
 
 		{#if session.tiles.length > 1 || (session.tiles.length === 1 && !focus)}
 			<aside class="strip" class:closed={!stripOpen}>
-				<button class="handle" onclick={() => (stripOpen = !stripOpen)}>
-					{stripOpen ? '▾' : '▴'}
+				<button class="handle" aria-label={stripOpen ? 'Recolher miniaturas' : 'Mostrar miniaturas'} aria-expanded={stripOpen} onclick={() => (stripOpen = !stripOpen)}>
+					<span class:rotate={!stripOpen}><Icon name="chevron-down" /></span>
 				</button>
 				{#if stripOpen}
 					{#each session.tiles as t (t.id)}
@@ -191,6 +234,7 @@
 							class="thumb"
 							class:active={t.id === session.focusId}
 							onclick={() => session && (session.focusId = t.id)}
+							aria-label={`Ver ${t.screen ? 'tela' : 'câmera'} de ${t.name}`}
 						>
 							<video
 								{@attach attachTrack(t.track)}
@@ -199,7 +243,7 @@
 								playsinline
 								muted
 							></video>
-							<span>{t.screen ? '🖥️' : '📷'} {t.name}</span>
+							<span><Icon name={t.screen ? 'screen' : 'camera'} size={13} /> {t.name}</span>
 						</button>
 					{/each}
 				{/if}
@@ -213,7 +257,11 @@
 					<div class="person">
 						<span class="dot" style:background={QUALITY_COLOR[p.quality]} title="Conexão"></span>
 						<span class="pname">{p.name}{p.local ? ' (você)' : ''}</span>
-						<span>{p.screen ? '🖥️' : ''}{p.camera ? '📷' : ''}{p.mic ? '🎙️' : ''}</span>
+						<span class="media-indicators">
+							{#if p.screen}<span role="img" aria-label="Compartilhando tela"><Icon name="screen" size={15} /></span>{/if}
+							{#if p.camera}<span role="img" aria-label="Câmera ligada"><Icon name="camera" size={15} /></span>{/if}
+							{#if p.mic}<span role="img" aria-label="Microfone ligado"><Icon name="mic" size={15} /></span>{/if}
+						</span>
 					</div>
 					{#if p.screenAudio && !p.local}
 						<input
@@ -224,20 +272,23 @@
 							value={session.volumes[p.identity] ?? 1}
 							oninput={(e) => session?.setScreenVolume(p.identity, +e.currentTarget.value)}
 							title="Volume do áudio da tela"
+							aria-label={`Volume do áudio da tela de ${p.name}`}
 						/>
 					{/if}
 				{/each}
 			</aside>
 		{/if}
 
-		<nav class="controls" class:hidden={!controls} onmouseenter={() => clearTimeout(hideTimer)}>
+		<nav class="controls" aria-label="Controles da sala" class:hidden={!controls} onfocusin={poke} onmouseenter={() => clearTimeout(hideTimer)}>
 			<div class="menu-anchor">
 				<button
 					class:on={session.screenOn}
 					onclick={() => (session?.screenOn ? toggleScreen() : (menu = !menu))}
 					title="Ctrl+Shift+S"
+					aria-label={session.screenOn ? 'Parar de compartilhar tela' : 'Compartilhar tela'}
+					aria-pressed={session.screenOn}
 				>
-					🖥️ Tela
+					<Icon name="screen" /> Tela
 				</button>
 				{#if menu}
 					<div class="menu">
@@ -247,20 +298,35 @@
 					</div>
 				{/if}
 			</div>
-			<button class:on={session.cameraOn} onclick={toggleCamera} title="Ctrl+Shift+C">📷 Câmera</button>
-			<button class:on={session.micOn} onclick={toggleMic}>{session.micOn ? '🎙️' : '🔇'} Mic</button>
-			<button class:on={peopleOpen} onclick={() => (peopleOpen = !peopleOpen)}>
-				👥 {session.people.length}
+			<button class:on={session.cameraOn} onclick={toggleCamera} title="Ctrl+Shift+C" aria-pressed={session.cameraOn} aria-label={session.cameraOn ? 'Desligar câmera' : 'Ligar câmera'}><Icon name="camera" /> Câmera</button>
+			<button class:on={session.micOn} onclick={toggleMic} aria-pressed={session.micOn} aria-label={session.micOn ? 'Desligar microfone' : 'Ligar microfone'}><Icon name={session.micOn ? 'mic' : 'mic-off'} /> Mic</button>
+			<button class:on={peopleOpen} aria-label={`Participantes: ${session.people.length}`} aria-expanded={peopleOpen} onclick={() => (peopleOpen = !peopleOpen)}>
+				<Icon name="users" /> {session.people.length}
 			</button>
-			<button onclick={copyCode}><span class="mono">{code}</span></button>
-			<button onclick={toggleFullscreen} title="F / duplo clique">⛶</button>
-			<button class="leave" onclick={leave}>Sair</button>
+			<button onclick={copyCode} aria-label={`Copiar código da sala ${code}`}><Icon name="copy" /><span class="mono">{code}</span></button>
+			<button onclick={toggleFullscreen} title="F / duplo clique" aria-label="Alternar tela cheia"><Icon name="fullscreen" /></button>
+			<button onclick={() => (settingsOpen = true)} aria-label="Configurações do servidor"><Icon name="settings" /></button>
+			<button class="leave" onclick={leave}><Icon name="exit" /> Sair</button>
 		</nav>
 
-		{#if toast}<div class="toast">{toast}</div>{/if}
+		{#if toast}<div class="toast" role="status">{toast}</div>{/if}
+		{#if settingsNotice}<div class="settings-notice" role="status">{settingsNotice}<button aria-label="Fechar aviso" onclick={() => (settingsNotice = '')}><Icon name="close" size={16} /></button></div>{/if}
 	</div>
 {:else}
 	<div class="center"><p>Conectando…</p></div>
+{/if}
+
+{#if settingsOpen}
+	<dialog
+		class="settings-dialog"
+		aria-label="Configurações do servidor"
+		{@attach (el: HTMLDialogElement) => { el.showModal(); }}
+		oncancel={() => (settingsOpen = false)}
+		onclose={() => (settingsOpen = false)}
+	>
+		{#if session}<p class="settings-context">As alterações serão usadas na próxima entrada. A conexão desta sala será mantida.</p>{/if}
+		<ServerSettings onsaved={savedSettings} oncancel={() => (settingsOpen = false)} />
+	</dialog>
 {/if}
 
 <style>
@@ -272,16 +338,123 @@
 	}
 	.card {
 		display: grid;
-		gap: 12px;
-		width: min(340px, 100%);
+		gap: 20px;
+		width: min(400px, 100%);
 		background: var(--card);
-		padding: 20px;
-		border-radius: 14px;
+		padding: 28px;
+		border-radius: 20px;
 		border: 1px solid var(--border);
 	}
-	h2 {
+	h1 {
 		margin: 0;
-		font-size: 16px;
+		font-size: 25px;
+		font-weight: 650;
+		letter-spacing: -0.04em;
+	}
+	.setup-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.brand {
+		font-size: 28px;
+		font-weight: 750;
+		letter-spacing: -0.07em;
+	}
+	.brand span {
+		color: var(--accent);
+	}
+	.setup-help, .settings-context {
+		color: var(--muted);
+		font-size: 13px;
+		line-height: 1.6;
+		margin: 8px 0 0;
+	}
+	.setup-help strong {
+		color: var(--fg);
+		font-weight: 500;
+	}
+	.card label {
+		display: grid;
+		gap: 8px;
+		font-size: 13px;
+	}
+	.card input {
+		min-height: 44px;
+	}
+	button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+	}
+	button:focus-visible, input:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 3px;
+	}
+	.icon-button {
+		width: 38px;
+		height: 38px;
+		padding: 0;
+	}
+	.error, .notice {
+		margin: 0;
+		padding: 12px;
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		font-size: 13px;
+		line-height: 1.6;
+	}
+	.error {
+		color: var(--danger);
+	}
+	.notice {
+		color: var(--ok);
+	}
+	.settings-dialog {
+		width: min(440px, calc(100% - 32px));
+		max-height: calc(100dvh - 32px);
+		overflow-y: auto;
+		padding: 24px;
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		background: var(--card);
+		color: var(--fg);
+		box-shadow: 0 24px 80px #0008;
+	}
+	.settings-dialog::backdrop {
+		background: #08080db3;
+	}
+	.settings-context {
+		margin: 0 0 20px;
+	}
+	.settings-notice {
+		position: fixed;
+		top: 16px;
+		left: 50%;
+		translate: -50% 0;
+		z-index: 12;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		width: min(520px, calc(100% - 32px));
+		padding: 12px 16px;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		background: var(--card);
+		font-size: 13px;
+		line-height: 1.5;
+	}
+	.media-indicators, .thumb span {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+	.handle span {
+		display: flex;
+	}
+	.rotate {
+		transform: rotate(180deg);
 	}
 	.mono {
 		font-family: ui-monospace, monospace;
@@ -435,6 +608,10 @@
 		translate: -50% 0;
 		display: flex;
 		gap: 6px;
+		flex-wrap: wrap;
+		justify-content: center;
+		width: max-content;
+		max-width: calc(100% - 24px);
 		padding: 8px;
 		background: #18181ee6;
 		border: 1px solid #333;
@@ -445,6 +622,13 @@
 	.controls.hidden {
 		opacity: 0;
 		pointer-events: none;
+	}
+	.controls.hidden:focus-within {
+		opacity: 1;
+		pointer-events: auto;
+	}
+	.controls:focus-within {
+		cursor: default;
 	}
 	.controls button {
 		background: #26262e;
@@ -485,5 +669,30 @@
 		padding: 6px 12px;
 		border-radius: 8px;
 		z-index: 11;
+	}
+	@media (max-width: 480px) {
+		.center {
+			padding: 16px;
+		}
+		.card {
+			padding: 22px;
+		}
+		.controls {
+			bottom: 12px;
+			gap: 4px;
+			padding: 6px;
+		}
+		.controls button {
+			padding: 9px;
+			font-size: 12px;
+		}
+		.people {
+			width: 180px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.controls {
+			transition: none;
+		}
 	}
 </style>

@@ -63,6 +63,11 @@ for file in manifest.json PeepButton.qml PeepPopup.qml peep-launch.sh; do
   [[ -f $tmp/peep/$file ]] || fail "Release is missing $file."
 done
 jq -e '.id == "peep"' "$tmp/peep/manifest.json" >/dev/null || fail 'Invalid plugin manifest.'
+# Public release defaults prefill a fresh client; explicit URLs always win.
+if [[ -f $tmp/peep/server-defaults.json ]]; then
+  api_url=${api_url:-$(jq -er '.apiUrl // ""' "$tmp/peep/server-defaults.json")}
+  web_url=${web_url:-$(jq -er '.webUrl // ""' "$tmp/peep/server-defaults.json")}
+fi
 chmod +x "$tmp/peep/peep-launch.sh"
 mkdir -p "$plugins" "$config_root/peep"
 # -T refuses a concurrently-created directory; -n never overwrites an existing path.
@@ -75,4 +80,4 @@ if [[ ! -e $config ]]; then
 fi
 omarchy-shell shell rescanPlugins
 omarchy plugin enable peep
-printf 'Peep installed. Edit %s locally: set inviteSecret and any empty apiUrl/webUrl fields. Existing config was preserved.\n' "$config"
+printf 'Peep installed. Open its gear to configure the server access key. Existing configuration was preserved.\n'
