@@ -151,7 +151,9 @@ fn grant_media(_: &WebviewWindow) {}
 
 /// WIN-3: create or focus the viewer window on /r/{code}; hides the popup.
 #[tauri::command]
-fn open_viewer(app: AppHandle, code: String) -> Result<(), String> {
+// Must be async: creating a window from a sync command deadlocks WebView2 on
+// Windows (blank window; tauri-apps/wry#583).
+async fn open_viewer(app: AppHandle, code: String) -> Result<(), String> {
     let code: String = code
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
