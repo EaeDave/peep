@@ -2,21 +2,20 @@
 
 Stack: `livekit` (host network) + `room-api` + `web` em um único recurso
 **Docker Compose** do Coolify, com auto-deploy a cada push na `main`.
-
-Produção atual (`eaedave.xyz`):
+Os hostnames abaixo são exemplos; use os seus (são configurados por env).
 
 | Host | Destino |
 |---|---|
-| `peep.eaedave.xyz` | web (Coolify, serviço `web`, porta 80) |
-| `peep-api.eaedave.xyz` | room-api (Coolify, serviço `room-api`, porta 8080) |
-| `peep-lk.eaedave.xyz` | LiveKit 7880 (Traefik dynamic config) |
-| `peep-turn.eaedave.xyz` | TURN/TLS via Traefik :443 → 5349 · TURN/UDP 3478 direto |
+| `call.DOMINIO` | web (serviço `web`, porta 8080) |
+| `api.DOMINIO` | room-api (serviço `room-api`, porta 8080) |
+| `lk.DOMINIO` | LiveKit 7880 (Traefik dynamic config) |
+| `turn.DOMINIO` | TURN/TLS via Traefik :443 → 5349 · TURN/UDP 3478 direto |
 
 ## 1. DNS
 
-`peep`, `peep-api` e `peep-lk` podem ficar atrás do proxy da Cloudflare.
-**`peep-turn` precisa ser DNS-only (nuvem cinza)** apontando para o IP da VPS,
-porque TURN (UDP 3478 e TLS com SNI) não passa pelo proxy da Cloudflare.
+Registros A para o IP da VPS. Com Cloudflare, `call`, `api` e `lk` podem ficar
+atrás do proxy, mas **`turn` precisa ser DNS-only (nuvem cinza)**: TURN (UDP
+3478 e TLS com SNI) não passa pelo proxy da Cloudflare.
 
 ## 2. Firewall (dois lugares — causa nº 1 de "conecta mas não chega vídeo")
 
@@ -29,7 +28,7 @@ porque TURN (UDP 3478 e TLS com SNI) não passa pelo proxy da Cloudflare.
 | 50000-60000 | UDP | mídia WebRTC |
 
 80/443 já estão abertos. 5349 **não** precisa ser público: o Traefik termina
-TLS em :443 (SNI `peep-turn`) e encaminha para 5349 local.
+TLS em :443 (SNI `turn.DOMINIO`) e encaminha para 5349 local.
 
 ### 2b. iptables do host (a imagem Ubuntu da Oracle rejeita tudo por padrão)
 
@@ -56,9 +55,9 @@ Dynamic Configurations). O Traefik recarrega sozinho.
 
 ## 4. Coolify
 
-- Recurso: **Private Repository (GitHub App)** → repo `peep`, branch `main`.
+- Recurso: **GitHub App / Public Repository** → este repo, branch `main`.
 - Build pack: **Docker Compose**, Base Directory `/infra`, Docker Compose Location `/docker-compose.yml`.
-- Domínios: `room-api` → `https://peep-api.DOMINIO:8080`; `web` → `https://peep.DOMINIO`.
+- Domínios: `room-api` → `https://api.DOMINIO:8080`; `web` → `https://call.DOMINIO:8080`.
 - Variáveis: ver `.env.example`. Gere as chaves com
   `docker run --rm livekit/livekit-server generate-keys`.
 - Auto-deploy: ligado (push na `main` dispara o deploy pelo GitHub App).
@@ -66,11 +65,11 @@ Dynamic Configurations). O Traefik recarrega sozinho.
 ## 5. Smoke test
 
 ```sh
-curl https://peep-api.DOMINIO/healthz                     # ok
+curl https://api.DOMINIO/healthz                     # ok
 curl -XPOST -H "Authorization: Bearer $INVITE_SECRET" \
-  -d '{"name":"teste"}' https://peep-api.DOMINIO/rooms     # {"code":"…"}
+  -d '{"name":"teste"}' https://api.DOMINIO/rooms     # {"code":"…"}
 ```
 
-Depois, LiveKit Meet (`meet.livekit.io` → custom server `wss://peep-lk.DOMINIO`
+Depois, LiveKit Meet (`meet.livekit.io` → custom server `wss://lk.DOMINIO`
 com um token de `POST /rooms/{code}/join`) em duas redes diferentes (uma no 4G).
 Para validar TURN, force relay (`iceTransportPolicy: 'relay'`).

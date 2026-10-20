@@ -24,3 +24,12 @@ services:
       PUBLIC_LIVEKIT_WS_URL: "${PUBLIC_LIVEKIT_WS_URL:?}"
       CORS_ORIGINS: "${CORS_ORIGINS:-}"
       PORT: "8080"
+
+  web:
+    build:
+      context: ../apps/web
+      args:
+        VITE_API_URL: "${PUBLIC_API_URL:?}"
+    restart: unless-stopped
+    expose:
+      - "8080"
