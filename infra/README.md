@@ -47,6 +47,21 @@ sudo netfilter-persistent save
 
 7880 e 5349 ficam acessíveis só pelas bridges do Docker, nunca pela internet.
 
+### 2c. Buffers UDP do kernel
+
+O padrão do Linux (212 KB) descarta pacotes de vídeo em rajadas
+(`RcvbufErrors` em `/proc/net/snmp`). O LiveKit usa até `rmem_max`/`wmem_max`:
+
+```sh
+printf '%s\n' 'net.core.rmem_max = 8388608' 'net.core.wmem_max = 8388608' \
+  'net.core.rmem_default = 1048576' 'net.core.wmem_default = 1048576' \
+  'net.core.netdev_max_backlog = 5000' | sudo tee /etc/sysctl.d/99-peep-udp.conf
+sudo sysctl --system   # depois, reinicie o LiveKit (redeploy) para aplicar
+```
+
+`livekit.yaml` limita os candidatos ICE à interface `enp0s6`; troque pelo nome
+da placa de rede do seu servidor (`ip -br a`).
+
 ## 3. Traefik (rotas para o LiveKit em host network)
 
 Copie `traefik-peep.yml` (trocando `DOMINIO`) para

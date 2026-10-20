@@ -1,6 +1,7 @@
 import {
 	ConnectionQuality,
 	type Participant,
+	RemoteVideoTrack,
 	Room,
 	RoomEvent,
 	ScreenSharePresets,
@@ -231,4 +232,166 @@ export class Session {
 		await this.room.localParticipant.setMicrophoneEnabled(on);
 		this.#refresh();
 	}
+
+	// --- Quality sampling: sent to the API for server-side diagnostics. ---
+	#prev = new Map<string, { bytes: number; ts: number }>();
+
+	/** kbps since the previous sample of the same RTP stream (bytes*8/ms = kbps). */
+	#kbps(id: string, bytes: number, ts: number) {
+		const p = this.#prev.get(id);
+		this.#prev.set(id, { bytes, ts });
+		return p && ts > p.ts ? Math.round(((bytes - p.bytes) * 8) / (ts - p.ts)) : undefined;
+	}
+
+	/** Selected ICE path (direct/relay, UDP/TCP), RTT and send bandwidth estimate. */
+	#path(stats: RTCStatsReport): IcePath | undefined {
+		const all: WebRtcStat[] = [...stats.values()];
+		const pairId = all.find((s) => s.type === 'transport')?.selectedCandidatePairId;
+		const pair: WebRtcStat | undefined = pairId
+			? stats.get(pairId)
+			: all.find((s) => s.type === 'candidate-pair' && s.nominated);
+		if (!pair?.localCandidateId) return undefined;
+		const local: WebRtcStat | undefined = stats.get(pair.localCandidateId);
+		return {
+			type: local?.candidateType,
+			proto: local?.relayProtocol ?? local?.protocol,
+			rttMs: pair.currentRoundTripTime === undefined ? undefined : Math.round(pair.currentRoundTripTime * 1000),
+			availOutKbps: pair.availableOutgoingBitrate === undefined ? undefined : Math.round(pair.availableOutgoingBitrate / 1000)
+		};
+	}
+
+	/** One compact sample of every sent and received video stream; null when idle. */
+	async sampleStats(): Promise<QualitySample | null> {
+		const out: QualitySample['out'] = [];
+		const inbound: QualitySample['in'] = [];
+		let path: IcePath | undefined;
+		const codec = (stats: RTCStatsReport, s: WebRtcStat): string | undefined =>
+			s.codecId ? (stats.get(s.codecId) as WebRtcStat | undefined)?.mimeType : undefined;
+		for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
+			const sender = pub.videoTrack?.sender;
+			if (!sender) continue;
+			const stats = await sender.getStats();
+			path ??= this.#path(stats);
+			const layers: QualitySample['out'][number]['layers'] = [];
+			for (const s of stats.values() as Iterable<WebRtcStat>) {
+				if (s.type !== 'outbound-rtp') continue;
+				layers.push({
+					rid: s.rid,
+					codec: codec(stats, s),
+					enc: s.encoderImplementation,
+					w: s.frameWidth,
+					h: s.frameHeight,
+					fps: s.framesPerSecond,
+					kbps: this.#kbps(s.id, s.bytesSent ?? 0, s.timestamp),
+					limit: s.qualityLimitationReason,
+					nack: s.nackCount,
+					pli: s.pliCount
+				});
+			}
+			out.push({ src: pub.source, layers });
+		}
+		for (const p of this.room.remoteParticipants.values()) {
+			for (const pub of p.videoTrackPublications.values()) {
+				const track = pub.videoTrack;
+				const receiver = track instanceof RemoteVideoTrack ? track.receiver : undefined;
+				if (!receiver) continue;
+				const stats = await receiver.getStats();
+				path ??= this.#path(stats);
+				for (const s of stats.values() as Iterable<WebRtcStat>) {
+					if (s.type !== 'inbound-rtp') continue;
+					inbound.push({
+						from: p.name || p.identity,
+						src: pub.source,
+						codec: codec(stats, s),
+						dec: s.decoderImplementation,
+						w: s.frameWidth,
+						h: s.frameHeight,
+						fps: s.framesPerSecond,
+						kbps: this.#kbps(s.id, s.bytesReceived ?? 0, s.timestamp),
+						lost: s.packetsLost,
+						recv: s.packetsReceived,
+						jitterMs: s.jitter === undefined ? undefined : Math.round(s.jitter * 1000),
+						freezes: s.freezeCount,
+						dropped: s.framesDropped
+					});
+				}
+			}
+		}
+		return out.length || inbound.length ? { path, out, in: inbound } : null;
+	}
+}
+
+/** Fields read from RTCStatsReport entries (all optional: they vary by stat type). */
+interface WebRtcStat {
+	id: string;
+	type: string;
+	timestamp: number;
+	codecId?: string;
+	mimeType?: string;
+	rid?: string;
+	encoderImplementation?: string;
+	decoderImplementation?: string;
+	frameWidth?: number;
+	frameHeight?: number;
+	framesPerSecond?: number;
+	bytesSent?: number;
+	bytesReceived?: number;
+	qualityLimitationReason?: string;
+	nackCount?: number;
+	pliCount?: number;
+	packetsLost?: number;
+	packetsReceived?: number;
+	jitter?: number;
+	freezeCount?: number;
+	framesDropped?: number;
+	selectedCandidatePairId?: string;
+	localCandidateId?: string;
+	nominated?: boolean;
+	candidateType?: string;
+	protocol?: string;
+	relayProtocol?: string;
+	currentRoundTripTime?: number;
+	availableOutgoingBitrate?: number;
+}
+
+export interface IcePath {
+	type?: string;
+	proto?: string;
+	rttMs?: number;
+	availOutKbps?: number;
+}
+
+/** Periodic quality sample posted to the room-api for diagnostics. */
+export interface QualitySample {
+	path?: IcePath;
+	out: {
+		src: Track.Source;
+		layers: {
+			rid?: string;
+			codec?: string;
+			enc?: string;
+			w?: number;
+			h?: number;
+			fps?: number;
+			kbps?: number;
+			limit?: string;
+			nack?: number;
+			pli?: number;
+		}[];
+	}[];
+	in: {
+		from: string;
+		src: Track.Source;
+		codec?: string;
+		dec?: string;
+		w?: number;
+		h?: number;
+		fps?: number;
+		kbps?: number;
+		lost?: number;
+		recv?: number;
+		jitterMs?: number;
+		freezes?: number;
+		dropped?: number;
+	}[];
 }

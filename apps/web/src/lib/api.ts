@@ -39,3 +39,13 @@ export const joinRoom = (code: string, name: string) =>
 
 export const getRoom = (code: string) =>
 	call<{ exists: boolean; participants: number }>('GET', `/rooms/${encodeURIComponent(code)}`);
+
+/** Fire-and-forget quality sample (diagnostics); failures are ignored. */
+export function reportStats(code: string, sample: object) {
+	void fetch(`${settings.apiUrl}/rooms/${encodeURIComponent(code)}/stats`, {
+		method: 'POST',
+		headers: { Authorization: 'Bearer ' + settings.secret, 'Content-Type': 'application/json' },
+		body: JSON.stringify(sample),
+		keepalive: true
+	}).catch(() => {});
+}

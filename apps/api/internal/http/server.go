@@ -43,6 +43,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /rooms", s.auth(s.createRoom))
 	mux.Handle("POST /rooms/{code}/join", s.auth(s.joinRoom))
 	mux.Handle("GET /rooms/{code}", s.auth(s.getRoom))
+	mux.Handle("POST /rooms/{code}/stats", s.auth(s.roomStats))
 	return s.cors(s.rateLimit(mux))
 }
 
@@ -118,6 +119,22 @@ func (s *Server) getRoom(w http.ResponseWriter, r *http.Request) {
 		n = int(res.Rooms[0].NumParticipants)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"exists": true, "participants": n})
+}
+
+// roomStats logs a client's periodic WebRTC quality sample (diagnostics only;
+// nothing is stored). Read them with: docker logs <room-api> | grep '"stats"'.
+func (s *Server) roomStats(w http.ResponseWriter, r *http.Request) {
+	code, ok := s.code(w, r)
+	if !ok {
+		return
+	}
+	var sample map[string]any
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&sample); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	slog.Info("stats", "code", code, "sample", sample)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // SweepLoop expires codes every interval using LiveKit's live room list.

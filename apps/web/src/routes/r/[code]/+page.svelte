@@ -2,10 +2,10 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { ConnectionQuality, type Track } from 'livekit-client';
-	import { joinRoom } from '#lib/api.ts';
+	import { joinRoom, reportStats } from '#lib/api.ts';
 	import { absorbUrlParams, maskCode, normalizeServerUrl, settings } from '#lib/config.ts';
 	import { QUALITY, type QualityMode, Session } from '#lib/livekit/session.svelte.ts';
-	import { leaveViewer } from '#lib/platform.ts';
+	import { isTauri, leaveViewer } from '#lib/platform.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
 
@@ -25,6 +25,7 @@
 	let peopleOpen = $state(false);
 	let controls = $state(true);
 	let hideTimer: ReturnType<typeof setTimeout>;
+	let statsTimer: ReturnType<typeof setInterval>;
 
 	onMount(() => {
 		absorbUrlParams();
@@ -32,11 +33,19 @@
 		if (!validConfig()) settingsOpen = true;
 		else if (name) connect();
 		poke();
+		// Quality sample every 15 s while connected; read server-side to diagnose drops.
+		statsTimer = setInterval(async () => {
+			const s = session;
+			if (s?.status !== 'connected') return;
+			const sample = await s.sampleStats().catch(() => null);
+			if (sample) reportStats(code, { name: settings.name, client: isTauri ? 'desktop' : 'web', ...sample });
+		}, 15_000);
 	});
 
 	onDestroy(() => {
 		destroyed = true;
 		clearTimeout(hideTimer);
+		clearInterval(statsTimer);
 		void session?.room.disconnect();
 	});
 

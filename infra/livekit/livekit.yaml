@@ -6,6 +6,11 @@ rtc:
   port_range_start: 50000
   port_range_end: 60000
   use_external_ip: true
+  # Host network sees every Docker bridge; offer only the real NIC as ICE
+  # candidate. Interface name of this VPS (Oracle Ubuntu); adjust on other hosts.
+  interfaces:
+    includes:
+      - enp0s6
 turn:
   enabled: true
   udp_port: 3478
