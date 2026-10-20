@@ -203,6 +203,11 @@ export class Session {
 					videoCodec: 'vp9',
 					backupCodec: { codec: 'vp8' },
 					simulcast: true,
+					// Declared up front so livekit-client treats VP9 screen share as rid
+					// simulcast everywhere. Left implicit, it reports SVC layers to the
+					// server but sends q/h simulcast: the server rejects h ("duplicate
+					// layer") and viewers only get the 720p30 low layer.
+					scalabilityMode: 'L1T3',
 					screenShareEncoding: {
 						maxBitrate: q.maxBitrate,
 						maxFramerate: q.resolution.frameRate,
