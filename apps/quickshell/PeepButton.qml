@@ -43,7 +43,19 @@ Panel {
   property bool checkingUpdate: false
   property bool updating: false
   property string updateStatus: ""
-  readonly property bool updateAvailable: newerVersion(latestVersion, currentVersion)
+  readonly property bool updateAvailable: !devInstall && newerVersion(latestVersion, currentVersion)
+  // Symlinked plugin = development checkout (updated with git pull): no release checks.
+  property bool devInstall: false
+  property bool installChecked: false
+
+  property Process installKind: Process {
+    running: true
+    command: ["bash", "-c", '[ -L "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/peep" ]']
+    onExited: function(exitCode) {
+      root.devInstall = exitCode === 0
+      root.installChecked = true
+    }
+  }
 
   property FileView manifestFile: FileView {
     path: Qt.resolvedUrl("manifest.json")
@@ -55,7 +67,7 @@ Panel {
 
   property Timer updateTimer: Timer {
     interval: 5 * 60 * 60 * 1000
-    running: true
+    running: root.installChecked && !root.devInstall
     repeat: true
     triggeredOnStart: true
     onTriggered: root.checkUpdate(false)
@@ -308,6 +320,7 @@ Panel {
     saving: root.saving
     defaults: root.defaults
     currentVersion: root.currentVersion
+    devInstall: root.devInstall
     latestVersion: root.updateAvailable ? root.latestVersion : ""
     checkingUpdate: root.checkingUpdate
     updating: root.updating

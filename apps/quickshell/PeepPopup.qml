@@ -18,6 +18,7 @@ KeyboardPanel {
   property bool saving: false
   property bool editingSettings: false
   property string currentVersion: ""
+  property bool devInstall: false
   property string latestVersion: ""
   property bool checkingUpdate: false
   property bool updating: false
@@ -342,13 +343,13 @@ KeyboardPanel {
           visible: !popup.editingSettings && popup.currentVersion !== ""
           spacing: Style.space(8)
           Label {
-            width: parent.width - updateAction.width - parent.spacing
+            width: parent.width - (updateAction.visible ? updateAction.width + parent.spacing : 0)
             anchors.verticalCenter: parent.verticalCenter
             // updateStatus wins: it carries the install error or "Reiniciando…".
             text: popup.updating ? "Atualizando para " + popup.latestVersion + "…"
               : popup.latestVersion !== "" && popup.updateStatus !== "" ? popup.updateStatus
               : popup.latestVersion !== "" ? "Versão " + popup.latestVersion + " disponível"
-              : "v" + popup.currentVersion + (popup.checkingUpdate ? " · verificando…" : popup.updateStatus !== "" ? " · " + popup.updateStatus : "")
+              : "v" + popup.currentVersion + (popup.devInstall ? " · dev" : popup.checkingUpdate ? " · verificando…" : popup.updateStatus !== "" ? " · " + popup.updateStatus : "")
             color: popup.latestVersion !== "" ? Commons.Color.accent : Commons.Color.foreground
             opacity: popup.latestVersion !== "" ? 1 : 0.6
             elide: Text.ElideRight
@@ -356,6 +357,7 @@ KeyboardPanel {
           }
           Button {
             id: updateAction
+            visible: !popup.devInstall
             text: popup.latestVersion !== "" ? "Atualizar" : ""
             iconText: popup.latestVersion !== "" ? "" : "\uf021"
             tooltipText: popup.latestVersion !== "" ? "Instalar e reiniciar a barra" : "Verificar atualizações"
