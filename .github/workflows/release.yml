@@ -57,6 +57,8 @@ jobs:
           # Public room-api URL baked into the bundled UI (repo variable, not a secret).
           # Empty → the app asks for it on first run.
           VITE_API_URL: ${{ vars.PEEP_API_URL }}
+          # Site the app windows load (UI ships with the site deploy). Empty → bundled UI.
+          PEEP_WEB_URL: ${{ vars.PEEP_WEB_URL }}
           # Signs the updater artifacts; the public key lives in tauri.conf.json.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

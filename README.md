@@ -12,7 +12,7 @@ Especificação completa: [`docs/PRD.md`](docs/PRD.md).
 | Caminho | O quê |
 |---|---|
 | [`apps/api`](apps/api) | room-api (Go): códigos de sala e tokens LiveKit |
-| [`apps/web`](apps/web) | frontend SvelteKit (site, embutido no Tauri, Chromium `--app`) |
+| [`apps/web`](apps/web) | frontend SvelteKit (site; carregado pelo Tauri e pelo Chromium `--app`) |
 | [`apps/desktop`](apps/desktop) | cliente Windows (Tauri v2, bandeja) |
 | [`apps/quickshell`](apps/quickshell) | plugin Linux (Omarchy/Quickshell) — ver README |
 | [`infra`](infra) | docker-compose para Coolify, LiveKit, Traefik — ver [`infra/README.md`](infra/README.md) |
@@ -35,8 +35,12 @@ compatíveis com instalações existentes.
   o GitHub Actions gera os instaladores Windows (`.msi`/`.exe`) no
   `windows-latest` e anexa o plugin Linux à release. Commits comuns não geram build.
   A URL pública da API embutida no app vem da variável de repositório `PEEP_API_URL`.
-  O plugin recebe também `PEEP_WEB_URL`. As URLs públicas vêm preenchidas por
-  padrão; uma configuração personalizada salva no dispositivo tem prioridade.
+  O app Windows e o plugin recebem também `PEEP_WEB_URL`: as janelas do app
+  carregam esse site, então mudanças de interface chegam com o deploy, sem
+  release (sem a variável, o app usa a cópia embutida do frontend). Releases só
+  são necessárias para código nativo (Rust/QML). As URLs públicas vêm
+  preenchidas por padrão; uma configuração personalizada salva no dispositivo
+  tem prioridade.
 
 ## Instalação dos clientes
 

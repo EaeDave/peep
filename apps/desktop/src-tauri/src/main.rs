@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use tauri::ipc::CapabilityBuilder;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
@@ -173,7 +174,7 @@ async fn open_viewer(app: AppHandle, code: String) -> Result<(), String> {
         let _ = v.set_focus();
         return Ok(());
     }
-    let v = WebviewWindowBuilder::new(&app, VIEWER, WebviewUrl::App(format!("r/{code}").into()))
+    let v = WebviewWindowBuilder::new(&app, VIEWER, page(&format!("r/{code}")))
         .title(format!("Peep — {code}"))
         .inner_size(1280.0, 720.0)
         .min_inner_size(480.0, 270.0)
@@ -183,6 +184,19 @@ async fn open_viewer(app: AppHandle, code: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     grant_media(&v);
     Ok(())
+}
+
+/// Site the windows load (PEEP_WEB_URL at build time), so UI changes ship with
+/// the site deploy like the Omarchy client. Unset → the bundled frontend.
+fn site() -> Option<&'static str> {
+    option_env!("PEEP_WEB_URL").map(|u| u.trim_end_matches('/')).filter(|u| !u.is_empty())
+}
+
+fn page(path: &str) -> WebviewUrl {
+    match site().and_then(|base| format!("{base}/{path}").parse().ok()) {
+        Some(url) => WebviewUrl::External(url),
+        None => WebviewUrl::App(path.into()),
+    }
 }
 
 fn main() {
@@ -236,7 +250,31 @@ fn main() {
                 })
                 .build(app)?;
 
-            let popup = app.get_webview_window(POPUP).expect("popup window in tauri.conf.json");
+            // Remote pages get IPC only for this exact site.
+            if let Some(base) = site() {
+                app.add_capability(
+                    CapabilityBuilder::new("site")
+                        .remote(format!("{base}/*"))
+                        .windows([POPUP, VIEWER])
+                        .permission("core:default")
+                        .permission("core:window:allow-close")
+                        .permission("core:window:allow-start-dragging")
+                        .permission("allow-open-viewer")
+                        .permission("allow-update-status")
+                        .permission("allow-check-update")
+                        .permission("allow-install-update"),
+                )?;
+            }
+            let popup = WebviewWindowBuilder::new(app, POPUP, page("join"))
+                .title("Peep")
+                .inner_size(320.0, 480.0)
+                .resizable(false)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .visible(false)
+                .focused(true)
+                .build()?;
             grant_media(&popup);
             let p = popup.clone();
             popup.on_window_event(move |e| match e {
