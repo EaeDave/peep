@@ -1,6 +1,6 @@
 [package]
 name = "peep"
-version = "0.1.11"
+version = "0.1.12"
 description = "Peep — salas de tela/câmera (cliente Windows)"
 edition = "2021"
 publish = false
