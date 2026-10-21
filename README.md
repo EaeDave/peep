@@ -63,6 +63,21 @@ sessão só afeta a próxima entrada; não derruba a conexão atual.
   Os instaladores resolvem a release pela API do GitHub e usam o endereço
   versionado do artefato, evitando redirecionamentos `latest/download` em cache.
 
+### Áudio da tela
+
+Navegadores não capturam áudio de janela, e o Chromium no Linux não captura o
+áudio do sistema. Os clientes nativos capturam por conta própria, sem incluir a
+própria chamada (sem eco):
+
+- **Windows (app):** WASAPI process loopback (Windows 10 2004+). Janela
+  compartilhada → só o áudio daquele app; tela inteira → tudo menos o Peep.
+- **Omarchy:** `peep-audio.sh` cria a fonte PipeWire "Peep: audio da tela" e liga
+  a ela a saída de todos os apps, menos o Chromium do Peep, enquanto a janela da
+  sala estiver aberta. Os alto-falantes não mudam. O portal do Wayland não informa
+  qual janela foi escolhida, então o áudio é sempre o do sistema inteiro.
+- **Navegador comum:** o que o navegador oferece (áudio de aba; tela inteira com
+  "Compartilhar áudio do sistema" no Chrome/Windows).
+
 ### Atualizações
 
 Os dois clientes mostram a versão atual no rodapé do popup e procuram uma nova

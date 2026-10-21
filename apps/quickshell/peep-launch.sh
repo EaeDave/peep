@@ -21,9 +21,16 @@ done
 [[ -n ${browser:-} ]] || { echo "peep: no Chromium-based browser found" >&2; exit 1; }
 
 enc() { jq -rn --arg v "$1" '$v|@uri'; }
+profile="${XDG_DATA_HOME:-$HOME/.local/share}/peep/chromium"
+# Screen-share audio via PipeWire (see peep-audio.sh); the page uses it when marked.
+audio=
+if command -v pw-dump >/dev/null && command -v pactl >/dev/null; then
+  setsid bash "$(dirname "$0")/peep-audio.sh" "$profile" >/dev/null 2>&1 &
+  audio="&audio=pipewire"
+fi
 # Secret/API travel in the #fragment: never sent to the server, stripped by the page.
-url="${web%/}/r/$(enc "$code")?name=$(enc "$name")#secret=$(enc "$secret")&api=$(enc "$api")"
+url="${web%/}/r/$(enc "$code")?name=$(enc "$name")$audio#secret=$(enc "$secret")&api=$(enc "$api")"
 
 exec "$browser" --app="$url" --class=peep --wayland-app-id=peep \
-  --user-data-dir="${XDG_DATA_HOME:-$HOME/.local/share}/peep/chromium" \
+  --user-data-dir="$profile" \
   --ozone-platform-hint=auto >/dev/null 2>&1

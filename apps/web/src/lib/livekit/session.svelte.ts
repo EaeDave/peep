@@ -1,4 +1,5 @@
 import {
+	AudioPresets,
 	ConnectionQuality,
 	type Participant,
 	RemoteVideoTrack,
@@ -8,6 +9,7 @@ import {
 	Track,
 	VideoPresets
 } from 'livekit-client';
+import { hasNativeScreenAudio, type NativeAudio, startNativeAudio } from './screenAudio.ts';
 
 export type QualityMode = 'jogo' | 'texto' | 'eco';
 
@@ -103,11 +105,16 @@ export class Session {
 			.on(RoomEvent.TrackMuted, refresh)
 			.on(RoomEvent.TrackUnmuted, refresh)
 			.on(RoomEvent.LocalTrackPublished, refresh)
-			.on(RoomEvent.LocalTrackUnpublished, refresh)
+			.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+				// Also covers the browser's own "Stop sharing" button.
+				if (pub.source === Track.Source.ScreenShare) this.#stopNativeAudio();
+				refresh();
+			})
 			.on(RoomEvent.ConnectionQualityChanged, refresh)
 			.on(RoomEvent.Reconnecting, () => (this.status = 'reconnecting'))
 			.on(RoomEvent.Reconnected, () => (this.status = 'connected'))
 			.on(RoomEvent.Disconnected, () => {
+				this.#stopNativeAudio();
 				this.status = 'disconnected';
 				refresh();
 			})
@@ -185,13 +192,15 @@ export class Session {
 		this.micOn = lp.isMicrophoneEnabled;
 	}
 
-	async setScreen(on: boolean, mode: QualityMode = 'jogo') {
+	/** Returns a warning when the screen is shared but its audio could not be. */
+	async setScreen(on: boolean, mode: QualityMode = 'jogo'): Promise<string | undefined> {
 		const q = QUALITY[mode];
 		try {
 			await this.room.localParticipant.setScreenShareEnabled(
 				on,
 				{
-					audio: true, // VW-6: "Compartilhar áudio do sistema" checkbox in the picker
+					// Native capture replaces it where available (window audio, no echo).
+					audio: !hasNativeScreenAudio, // VW-6: "Compartilhar áudio do sistema" checkbox in the picker
 					systemAudio: 'include',
 					selfBrowserSurface: 'exclude',
 					surfaceSwitching: 'include',
@@ -222,6 +231,40 @@ export class Session {
 			if ((e as Error).name !== 'NotAllowedError') throw e;
 		}
 		this.#refresh();
+		if (!on) this.#stopNativeAudio();
+		else if (hasNativeScreenAudio && this.screenOn && !this.#native) return this.#startNativeAudio();
+	}
+
+	#native: NativeAudio | null = null;
+
+	async #startNativeAudio(): Promise<string | undefined> {
+		const video = this.room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track
+			?.mediaStreamTrack;
+		if (!video) return;
+		try {
+			const native = await startNativeAudio(video);
+			this.#native = native;
+			native.track.contentHint = 'music';
+			await this.room.localParticipant.publishTrack(native.track, {
+				source: Track.Source.ScreenShareAudio,
+				name: 'screen_share_audio',
+				audioPreset: AudioPresets.musicHighQualityStereo,
+				forceStereo: true,
+				dtx: false,
+				red: false
+			});
+		} catch (e) {
+			this.#stopNativeAudio();
+			return `Tela compartilhada sem áudio: ${(e as Error).message}`;
+		}
+	}
+
+	#stopNativeAudio() {
+		const native = this.#native;
+		if (!native) return;
+		this.#native = null;
+		void this.room.localParticipant.unpublishTrack(native.track).catch(() => {});
+		native.stop();
 	}
 
 	async setCamera(on: boolean) {

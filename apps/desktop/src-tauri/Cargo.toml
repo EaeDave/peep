@@ -17,6 +17,7 @@ tauri-plugin-updater = "2"
 serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
+wasapi = "0.26"
 webview2-com = "0.39"
 
 [profile.release]

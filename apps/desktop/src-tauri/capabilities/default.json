@@ -10,6 +10,8 @@
 		"allow-open-viewer",
 		"allow-update-status",
 		"allow-check-update",
-		"allow-install-update"
+		"allow-install-update",
+		"allow-start-screen-audio",
+		"allow-stop-screen-audio"
 	]
 }

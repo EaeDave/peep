@@ -1,6 +1,13 @@
 // App commands get ACL permissions (allow-<command>): required for the remote
 // site to call them, and then enforced for local pages too.
-const COMMANDS: &[&str] = &["open_viewer", "update_status", "check_update", "install_update"];
+const COMMANDS: &[&str] = &[
+    "open_viewer",
+    "update_status",
+    "check_update",
+    "install_update",
+    "start_screen_audio",
+    "stop_screen_audio",
+];
 
 fn main() {
     tauri_build::try_build(

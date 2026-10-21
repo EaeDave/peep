@@ -16,6 +16,8 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_positioner::{Position, WindowExt};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
+mod audio;
+
 const POPUP: &str = "popup";
 const VIEWER: &str = "viewer";
 
@@ -207,7 +209,15 @@ fn main() {
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(PendingUpdate::default())
-        .invoke_handler(tauri::generate_handler![open_viewer, update_status, check_update, install_update])
+        .manage(audio::ScreenAudio::default())
+        .invoke_handler(tauri::generate_handler![
+            open_viewer,
+            update_status,
+            check_update,
+            install_update,
+            audio::start_screen_audio,
+            audio::stop_screen_audio
+        ])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Abrir", true, None::<&str>)?;
             let autostart = CheckMenuItem::with_id(
@@ -262,7 +272,9 @@ fn main() {
                         .permission("allow-open-viewer")
                         .permission("allow-update-status")
                         .permission("allow-check-update")
-                        .permission("allow-install-update"),
+                        .permission("allow-install-update")
+                        .permission("allow-start-screen-audio")
+                        .permission("allow-stop-screen-audio"),
                 )?;
             }
             let popup = WebviewWindowBuilder::new(app, POPUP, page("join"))

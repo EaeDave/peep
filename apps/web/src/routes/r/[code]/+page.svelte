@@ -116,7 +116,8 @@
 		act(async () => {
 			menu = false;
 			mode = m;
-			await session?.setScreen(!session.screenOn, m);
+			const warning = await session?.setScreen(!session.screenOn, m);
+			if (warning) flash(warning);
 		});
 	const toggleCamera = () => act(async () => void (await session?.setCamera(!session.cameraOn)));
 	const toggleMic = () => act(async () => void (await session?.setMic(!session.micOn)));

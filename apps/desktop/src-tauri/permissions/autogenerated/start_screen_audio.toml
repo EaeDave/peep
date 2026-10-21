@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-screen-audio"
+description = "Enables the start_screen_audio command without any pre-configured scope."
+commands.allow = ["start_screen_audio"]
+
+[[permission]]
+identifier = "deny-start-screen-audio"
+description = "Denies the start_screen_audio command without any pre-configured scope."
+commands.deny = ["start_screen_audio"]
