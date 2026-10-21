@@ -78,6 +78,23 @@ própria chamada (sem eco):
 - **Navegador comum:** o que o navegador oferece (áudio de aba; tela inteira com
   "Compartilhar áudio do sistema" no Chrome/Windows).
 
+### Supressão de ruído
+
+O menu do microfone (seta ao lado do botão) escolhe o microfone e a supressão
+de ruído, salva no dispositivo:
+
+- **Forte (IA)** (padrão): [GTCRN](https://github.com/Xiaobin-Rong/gtcrn), que
+  supera o RNNoise e se aproxima do DeepFilterNet com ~10× menos CPU. O modelo
+  trabalha a 16 kHz (voz com banda de até 8 kHz).
+- **Leve**: RNNoise, banda cheia (48 kHz), mais natural com ruído leve.
+- **Desligada**: só a supressão do navegador.
+
+O filtro roda no navegador depois do cancelamento de eco (`setProcessor` do
+LiveKit), via [`@sapphi-red/web-noise-suppressor`](https://github.com/sapphi-red/web-noise-suppressor);
+os arquivos WASM são servidos pelo próprio site. Com o filtro ativo, a supressão
+do navegador é desligada para evitar voz metálica. Se o modelo falhar, cai para
+o Leve e depois para a supressão do navegador, com aviso na tela.
+
 ### Atualizações
 
 Os dois clientes mostram a versão atual no rodapé do popup e procuram uma nova

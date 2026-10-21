@@ -47,6 +47,14 @@ export const settings = {
 	set micId(v: string) {
 		set('micId', v);
 	},
+	/** Noise suppression: strong (GTCRN, default), light (RNNoise) or off. */
+	get noiseMode(): 'strong' | 'light' | 'off' {
+		const v = get('noiseMode');
+		return v === 'light' || v === 'off' ? v : 'strong';
+	},
+	set noiseMode(v: 'strong' | 'light' | 'off') {
+		set('noiseMode', v);
+	},
 	get configured() {
 		return !!(this.secret && this.apiUrl);
 	}

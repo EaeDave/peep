@@ -1,6 +1,7 @@
 import {
 	AudioPresets,
 	ConnectionQuality,
+	LocalAudioTrack,
 	type Participant,
 	RemoteVideoTrack,
 	Room,
@@ -11,6 +12,7 @@ import {
 } from 'livekit-client';
 import { settings } from '#lib/config.ts';
 import { hasNativeScreenAudio, type NativeAudio, startNativeAudio } from './screenAudio.ts';
+import { captureFor, fallbackChain, type NoiseMode, noiseFilter, preloadNoise } from './noiseFilter.ts';
 
 export type QualityMode = 'jogo' | 'texto' | 'eco';
 
@@ -89,6 +91,9 @@ export class Session {
 	volumes = $state<Record<string, number>>({});
 	micDevices = $state<MediaDeviceInfo[]>([]);
 	micDeviceId = $state(settings.micId);
+	noiseMode = $state<NoiseMode>(settings.noiseMode);
+	/** Filter actually running on the mic (differs from noiseMode after a fallback). */
+	noiseActive = $state<NoiseMode>('off');
 
 	constructor() {
 		const r = this.room;
@@ -131,6 +136,8 @@ export class Session {
 		this.status = 'connecting';
 		await this.room.connect(url, token);
 		this.status = 'connected';
+		// Warm the model so the mic is filtered almost as soon as it publishes.
+		if (this.noiseMode !== 'off') preloadNoise(this.noiseMode);
 		this.audioBlocked = !this.room.canPlaybackAudio;
 		this.#refresh();
 	}
@@ -280,9 +287,73 @@ export class Session {
 		this.#refresh();
 	}
 
-	async setMic(on: boolean) {
-		await this.room.localParticipant.setMicrophoneEnabled(on);
+	#micTrack(): LocalAudioTrack | undefined {
+		const track = this.room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+		return track instanceof LocalAudioTrack ? track : undefined;
+	}
+
+	/** Returns a warning when noise suppression had to fall back. */
+	async setMic(on: boolean): Promise<string | undefined> {
+		const lp = this.room.localParticipant;
+		// An existing (muted) track keeps its filter: just toggle it.
+		if (!on || this.#micTrack()) {
+			await lp.setMicrophoneEnabled(on);
+			this.#refresh();
+			return;
+		}
+		await lp.setMicrophoneEnabled(true, captureFor(this.noiseMode));
+		const warning = await this.#applyNoise(this.noiseMode);
 		this.#refresh();
+		return warning;
+	}
+
+	/** Changes the filter, live if the mic is on; remembered for next sessions. */
+	async setNoiseMode(mode: NoiseMode): Promise<string | undefined> {
+		this.noiseMode = mode;
+		settings.noiseMode = mode;
+		const track = this.#micTrack();
+		if (!track) return;
+		if (track.isMuted) {
+			// Recreated with the new capture settings the next time the mic turns on.
+			await this.room.localParticipant.unpublishTrack(track);
+			this.noiseActive = 'off';
+			return;
+		}
+		await this.#restartMic(track, mode);
+		return this.#applyNoise(mode);
+	}
+
+	#restartMic(track: LocalAudioTrack, mode: NoiseMode) {
+		const deviceId = this.room.getActiveDevice('audioinput');
+		return track.restartTrack({ ...captureFor(mode), ...(deviceId ? { deviceId } : {}) });
+	}
+
+	/**
+	 * Attaches the filter to the published mic (processors need the track's
+	 * AudioContext, set on publish). Falls back strong → light → browser
+	 * suppression, so a failure never leaves the mic with no suppression at all.
+	 */
+	async #applyNoise(mode: NoiseMode): Promise<string | undefined> {
+		const track = this.#micTrack();
+		if (!track) return;
+		let warning: string | undefined;
+		for (const m of fallbackChain(mode)) {
+			try {
+				if (m !== 'off') {
+					await track.setProcessor(noiseFilter(m));
+				} else {
+					await track.stopProcessor();
+					if (mode !== 'off') await this.#restartMic(track, 'off');
+				}
+				this.noiseActive = m;
+				return warning;
+			} catch (e) {
+				this.noiseActive = 'off';
+				if (m === 'off') return warning;
+				warning = `Supressão de ruído ${m === 'strong' ? 'forte' : 'leve'} indisponível (${(e as Error).message}).`;
+			}
+		}
+		return warning;
 	}
 
 	/** Lists microphones (asks for permission so labels are readable). */

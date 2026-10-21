@@ -5,6 +5,7 @@
 	import { joinRoom, reportStats } from '#lib/api.ts';
 	import { absorbUrlParams, maskCode, normalizeServerUrl, settings } from '#lib/config.ts';
 	import { QUALITY, type QualityMode, Session } from '#lib/livekit/session.svelte.ts';
+	import type { NoiseMode } from '#lib/livekit/noiseFilter.ts';
 	import { isTauri, leaveViewer } from '#lib/platform.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
@@ -40,7 +41,8 @@
 			const s = session;
 			if (s?.status !== 'connected') return;
 			const sample = await s.sampleStats().catch(() => null);
-			if (sample) reportStats(code, { name: settings.name, client: isTauri ? 'desktop' : 'web', ...sample });
+			if (sample)
+				reportStats(code, { name: settings.name, client: isTauri ? 'desktop' : 'web', noise: s.micOn ? s.noiseActive : null, ...sample });
 		}, 15_000);
 	});
 
@@ -102,7 +104,8 @@
 
 	function flash(msg: string) {
 		toast = msg;
-		setTimeout(() => toast === msg && (toast = ''), 2000);
+		// Long warnings (e.g. a filter fallback) need time to be read.
+		setTimeout(() => toast === msg && (toast = ''), Math.min(8000, 2000 + msg.length * 50));
 	}
 
 	async function act(fn: () => Promise<void>) {
@@ -121,7 +124,22 @@
 			if (warning) flash(warning);
 		});
 	const toggleCamera = () => act(async () => void (await session?.setCamera(!session.cameraOn)));
-	const toggleMic = () => act(async () => void (await session?.setMic(!session.micOn)));
+	const toggleMic = () =>
+		act(async () => {
+			const warning = await session?.setMic(!session.micOn);
+			if (warning) flash(warning);
+		});
+	const NOISE_MODES: { mode: NoiseMode; label: string }[] = [
+		{ mode: 'strong', label: 'Forte (IA)' },
+		{ mode: 'light', label: 'Leve' },
+		{ mode: 'off', label: 'Desligada' }
+	];
+	const pickNoise = (mode: NoiseMode) =>
+		act(async () => {
+			micMenu = false;
+			const warning = await session?.setNoiseMode(mode);
+			if (warning) flash(warning);
+		});
 	const openMicMenu = () =>
 		act(async () => {
 			micMenu = !micMenu;
@@ -364,6 +382,13 @@
 							</button>
 						{:else}
 							<p>Nenhum microfone encontrado.</p>
+						{/each}
+						<p>Supressão de ruído{session.micOn && session.noiseActive !== session.noiseMode ? ` (em uso: ${NOISE_MODES.find((n) => n.mode === session?.noiseActive)?.label.toLowerCase()})` : ''}</p>
+						{#each NOISE_MODES as n (n.mode)}
+							<button aria-pressed={n.mode === session.noiseMode} onclick={() => pickNoise(n.mode)}>
+								<span class="check">{#if n.mode === session.noiseMode}<Icon name="check" size={14} />{/if}</span>
+								<span class="label">{n.label}</span>
+							</button>
 						{/each}
 					</div>
 				{/if}
