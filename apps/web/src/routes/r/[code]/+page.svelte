@@ -22,7 +22,8 @@
 	let mode = $state<QualityMode>('jogo');
 	let menu = $state(false);
 	let stripOpen = $state(true);
-	let peopleOpen = $state(false);
+	// Open by default; below 850px the panel overlays the video, so start closed there.
+	let peopleOpen = $state(window.innerWidth > 850);
 	let controls = $state(true);
 	let hideTimer: ReturnType<typeof setTimeout>;
 	let statsTimer: ReturnType<typeof setInterval>;
