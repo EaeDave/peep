@@ -9,6 +9,7 @@ import {
 	Track,
 	VideoPresets
 } from 'livekit-client';
+import { settings } from '#lib/config.ts';
 import { hasNativeScreenAudio, type NativeAudio, startNativeAudio } from './screenAudio.ts';
 
 export type QualityMode = 'jogo' | 'texto' | 'eco';
@@ -73,7 +74,8 @@ export class Session {
 	readonly room = new Room({
 		adaptiveStream: true,
 		dynacast: true,
-		videoCaptureDefaults: { resolution: VideoPresets.h720.resolution }
+		videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+		audioCaptureDefaults: settings.micId ? { deviceId: settings.micId } : undefined
 	});
 
 	status = $state<'connecting' | 'connected' | 'reconnecting' | 'disconnected'>('connecting');
@@ -85,6 +87,8 @@ export class Session {
 	micOn = $state(false);
 	audioBlocked = $state(false);
 	volumes = $state<Record<string, number>>({});
+	micDevices = $state<MediaDeviceInfo[]>([]);
+	micDeviceId = $state(settings.micId);
 
 	constructor() {
 		const r = this.room;
@@ -279,6 +283,21 @@ export class Session {
 	async setMic(on: boolean) {
 		await this.room.localParticipant.setMicrophoneEnabled(on);
 		this.#refresh();
+	}
+
+	/** Lists microphones (asks for permission so labels are readable). */
+	async loadMics() {
+		const all = await Room.getLocalDevices('audioinput', true);
+		// The Omarchy screen-audio source and Chromium's alias entry are not microphones.
+		this.micDevices = all.filter((d) => !d.label.startsWith('Peep:') && d.deviceId !== 'communications');
+		this.micDeviceId = this.room.getActiveDevice('audioinput') ?? this.micDeviceId;
+	}
+
+	/** Switches the live microphone (if on) and remembers it for next sessions. */
+	async setMicDevice(deviceId: string) {
+		await this.room.switchActiveDevice('audioinput', deviceId);
+		this.micDeviceId = deviceId;
+		settings.micId = deviceId;
 	}
 
 	// --- Quality sampling: sent to the API for server-side diagnostics. ---

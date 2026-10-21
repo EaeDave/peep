@@ -22,15 +22,18 @@ impl ScreenAudio {
 }
 
 /// `hwnd`: native handle of the shared window (from the capture deviceId); none = whole screen.
+/// Async: reading the WebView2 process id hops to the main thread.
 #[tauri::command]
-pub fn start_screen_audio(
-    state: State<ScreenAudio>,
+pub async fn start_screen_audio(
+    webview: tauri::Webview,
+    state: State<'_, ScreenAudio>,
     hwnd: Option<i64>,
     channel: Channel<InvokeResponseBody>,
 ) -> Result<(), String> {
     state.stop();
+    let call = imp::call_process(&webview);
     let running = Arc::new(AtomicBool::new(true));
-    imp::start(hwnd, channel, running.clone())?;
+    imp::start(hwnd, call, channel, running.clone())?;
     *state.0.lock().unwrap() = Some(running);
     Ok(())
 }
@@ -59,25 +62,41 @@ mod imp {
     /// 10 ms at 48 kHz per IPC message.
     const CHUNK_FRAMES: usize = 480;
 
-    /// (process, include its tree): the window's app, or everyone but Peep.
-    fn target(hwnd: Option<i64>) -> (u32, bool) {
-        let own = std::process::id();
+    /// Process tree that plays the call: the WebView2 browser process, which is
+    /// not necessarily a descendant of Peep.exe. Excluding Peep.exe alone let
+    /// the other participants' voices back into whole-screen shares.
+    pub fn call_process(webview: &tauri::Webview) -> u32 {
+        let (tx, rx) = mpsc::channel();
+        let asked = webview.with_webview(move |wv| unsafe {
+            let mut pid = 0u32;
+            let ok = wv.controller().CoreWebView2().and_then(|c| c.BrowserProcessId(&mut pid)).is_ok();
+            let _ = tx.send(if ok && pid != 0 { Some(pid) } else { None });
+        });
+        asked
+            .ok()
+            .and_then(|_| rx.recv_timeout(std::time::Duration::from_secs(2)).ok().flatten())
+            .unwrap_or_else(std::process::id)
+    }
+
+    /// (process, include its tree): the shared window's app, or everything but the call.
+    fn target(hwnd: Option<i64>, call: u32) -> (u32, bool) {
         if let Some(h) = hwnd {
             let mut pid = 0u32;
             unsafe { GetWindowThreadProcessId(h as isize, &mut pid) };
-            if pid != 0 && pid != own {
+            if pid != 0 && pid != call && pid != std::process::id() {
                 return (pid, true);
             }
         }
-        (own, false)
+        (call, false)
     }
 
     pub fn start(
         hwnd: Option<i64>,
+        call: u32,
         channel: Channel<InvokeResponseBody>,
         running: Arc<AtomicBool>,
     ) -> Result<(), String> {
-        let (pid, include_tree) = target(hwnd);
+        let (pid, include_tree) = target(hwnd, call);
         // The thread reports whether WASAPI accepted the client before streaming.
         let (ready_tx, ready_rx) = mpsc::channel();
         std::thread::Builder::new()
@@ -142,7 +161,11 @@ mod imp {
 
     use tauri::ipc::{Channel, InvokeResponseBody};
 
-    pub fn start(_: Option<i64>, _: Channel<InvokeResponseBody>, _: Arc<AtomicBool>) -> Result<(), String> {
+    pub fn call_process(_: &tauri::Webview) -> u32 {
+        std::process::id()
+    }
+
+    pub fn start(_: Option<i64>, _: u32, _: Channel<InvokeResponseBody>, _: Arc<AtomicBool>) -> Result<(), String> {
         Err("Áudio nativo da tela está disponível apenas no Windows.".into())
     }
 }

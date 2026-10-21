@@ -21,6 +21,7 @@
 	let toast = $state('');
 	let mode = $state<QualityMode>('jogo');
 	let menu = $state(false);
+	let micMenu = $state(false);
 	let stripOpen = $state(true);
 	// Open by default; below 850px the panel overlays the video, so start closed there.
 	let peopleOpen = $state(window.innerWidth > 850);
@@ -121,6 +122,16 @@
 		});
 	const toggleCamera = () => act(async () => void (await session?.setCamera(!session.cameraOn)));
 	const toggleMic = () => act(async () => void (await session?.setMic(!session.micOn)));
+	const openMicMenu = () =>
+		act(async () => {
+			micMenu = !micMenu;
+			if (micMenu) await session?.loadMics();
+		});
+	const pickMic = (id: string) =>
+		act(async () => {
+			micMenu = false;
+			await session?.setMicDevice(id);
+		});
 
 	async function copyCode() {
 		try {
@@ -145,7 +156,7 @@
 	function poke() {
 		controls = true;
 		clearTimeout(hideTimer);
-		hideTimer = setTimeout(() => !menu && !settingsOpen && !!focus && (controls = false), 3000);
+		hideTimer = setTimeout(() => !menu && !micMenu && !settingsOpen && !!focus && (controls = false), 3000);
 	}
 
 	function onKey(e: KeyboardEvent) {
@@ -340,7 +351,23 @@
 				{/if}
 			</div>
 			<button class:on={session.cameraOn} onclick={toggleCamera} title="Câmera (Ctrl+Shift+C)" aria-pressed={session.cameraOn} aria-label={session.cameraOn ? 'Desligar câmera' : 'Ligar câmera'}><Icon name="camera" size={20} /><span>Câmera</span></button>
-			<button class:on={session.micOn} onclick={toggleMic} aria-pressed={session.micOn} aria-label={session.micOn ? 'Desligar microfone' : 'Ligar microfone'}><Icon name={session.micOn ? 'mic' : 'mic-off'} size={20} /><span>{session.micOn ? 'Microfone' : 'Sem áudio'}</span></button>
+			<div class="menu-anchor mic-group">
+				<button class:on={session.micOn} onclick={toggleMic} aria-pressed={session.micOn} aria-label={session.micOn ? 'Desligar microfone' : 'Ligar microfone'}><Icon name={session.micOn ? 'mic' : 'mic-off'} size={20} /><span>{session.micOn ? 'Microfone' : 'Sem áudio'}</span></button>
+				<button class="mic-pick" class:on={session.micOn} onclick={openMicMenu} aria-label="Escolher microfone" title="Escolher microfone" aria-expanded={micMenu}><Icon name="chevron-down" size={13} /></button>
+				{#if micMenu}
+					<div class="menu mic-menu">
+						<p>Microfone</p>
+						{#each session.micDevices as d (d.deviceId)}
+							<button aria-pressed={d.deviceId === session.micDeviceId} onclick={() => pickMic(d.deviceId)}>
+								<span class="check">{#if d.deviceId === session.micDeviceId}<Icon name="check" size={14} />{/if}</span>
+								<span class="label">{d.label || 'Microfone sem nome'}</span>
+							</button>
+						{:else}
+							<p>Nenhum microfone encontrado.</p>
+						{/each}
+					</div>
+				{/if}
+			</div>
 			<span class="control-divider"></span>
 			<button class:on={peopleOpen} aria-label={`Participantes: ${session.people.length}`} aria-expanded={peopleOpen} onclick={() => (peopleOpen = !peopleOpen)}>
 				<Icon name="users" size={20} /><span class="people-count">{session.people.length}</span>
@@ -626,6 +653,13 @@
 	.menu { position: absolute; bottom: calc(100% + 12px); left: 0; display: grid; gap: 4px; padding: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; width: max-content; z-index: 5; box-shadow: 0 12px 40px #0004; }
 	.menu p { color: var(--muted); font-size: 11px; margin: 6px 8px; }
 	.menu button { border-color: transparent; justify-content: flex-start; }
+	.mic-group { display: flex; }
+	.controls .mic-group > button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+	.controls .mic-pick { border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 10px 8px; min-width: 0; }
+	.mic-menu { left: auto; right: 0; }
+	.mic-menu button { max-width: min(360px, 80vw); }
+	.mic-menu .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.mic-menu .check { width: 14px; flex-shrink: 0; display: grid; place-items: center; }
 	.quiet { opacity: 0; pointer-events: none; }
 	.quiet:focus-within { opacity: 1; pointer-events: auto; cursor: default; }
 	.room-header, .room-footer { transition: opacity 0.2s; }

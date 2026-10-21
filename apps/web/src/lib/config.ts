@@ -40,6 +40,13 @@ export const settings = {
 	set apiUrl(v: string) {
 		set('apiUrl', v.trim());
 	},
+	/** Chosen microphone (deviceId); empty = system default. */
+	get micId() {
+		return get('micId');
+	},
+	set micId(v: string) {
+		set('micId', v);
+	},
 	get configured() {
 		return !!(this.secret && this.apiUrl);
 	}
