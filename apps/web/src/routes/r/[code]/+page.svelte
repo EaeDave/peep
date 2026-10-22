@@ -25,8 +25,8 @@
 	let menu = $state(false);
 	let micMenu = $state(false);
 	let stripOpen = $state(true);
-	// Open by default at any width; below 640px it overlays the video (closable).
-	let peopleOpen = $state(true);
+	/** Per-person volume popover, opened from a grid cell or a strip thumbnail. */
+	let volumeMenu = $state<{ identity: string; x: number; y: number } | null>(null);
 	let notifyOn = $state(settings.notify);
 	let controls = $state(true);
 	let hideTimer: ReturnType<typeof setTimeout>;
@@ -192,10 +192,14 @@
 	function poke() {
 		controls = true;
 		clearTimeout(hideTimer);
-		hideTimer = setTimeout(() => !menu && !micMenu && !settingsOpen && !!focus && (controls = false), 3000);
+		hideTimer = setTimeout(() => !menu && !micMenu && !settingsOpen && !volumeMenu && !!focus && (controls = false), 3000);
 	}
 
 	function onKey(e: KeyboardEvent) {
+		if (e.key === 'Escape' && volumeMenu) {
+			volumeMenu = null;
+			return;
+		}
 		if (settingsOpen || (e.target as HTMLElement).closest('input, textarea, select') || !session) return;
 		const k = e.key.toLowerCase();
 		if (e.ctrlKey && e.shiftKey && k === 's') {
@@ -228,9 +232,25 @@
 		return n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
 	});
 	const cameraOf = (identity: string) => session?.tiles.find((t) => t.id === `${identity}:camera`);
+	let volumePerson = $derived(volumeMenu && session?.people.find((p) => p.identity === volumeMenu?.identity));
+
+	/** Opens the volume popover near the click (or the button, from the keyboard). */
+	function openVolume(identity: string, e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const x = e.detail ? e.clientX : r.left + r.width / 2;
+		const y = e.detail ? e.clientY : r.top + r.height / 2;
+		volumeMenu = { identity, x: Math.min(x, innerWidth - 272), y: Math.min(y, innerHeight - 190) };
+	}
+
+	function closeVolumeOutside(e: PointerEvent) {
+		poke();
+		if (volumeMenu && !(e.target as HTMLElement).closest('.volume-menu, .vol-btn')) volumeMenu = null;
+	}
 </script>
 
-<svelte:window onkeydown={onKey} onmousemove={poke} onpointerdown={poke} />
+<svelte:window onkeydown={onKey} onmousemove={poke} onpointerdown={closeVolumeOutside} />
 
 {#if needName || error}
 	<div class="center">
@@ -269,16 +289,23 @@
 			<div class="room-tools">
 				<span class="connection"><span class="dot" class:connected={session.status === 'connected'}></span>{session.status === 'connected' ? 'Conectado' : session.status === 'connecting' ? 'Conectando' : session.status === 'reconnecting' ? 'Reconectando' : 'Desconectado'}</span>
 				<button class="icon-button" onclick={toggleFullscreen} title="Tela cheia (F)" aria-label="Alternar tela cheia"><Icon name="fullscreen" /></button>
-				<button class="icon-button" onclick={() => (settingsOpen = true)} aria-label="Configurações do servidor"><Icon name="settings" /></button>
+				<button class="icon-button" onclick={() => (settingsOpen = true)} aria-label="Configurações"><Icon name="settings" /></button>
 			</div>
 		</header>
-		<main class="room-content" class:with-people={peopleOpen}>
+		<main class="room-content">
 		<section class="stage" ondblclick={toggleFullscreen} role="presentation">
 			{#if grid}
 				<div class="people-grid" style:--cols={gridCols}>
 					{#each session.people as p (p.identity)}
 						{@const cam = cameraOf(p.identity)}
-						<div class="cell" class:speaking={p.speaking} aria-label={`${p.name}${p.speaking ? ', falando' : ''}`}>
+						<div
+							class="cell"
+							class:speaking={p.speaking}
+							class:remote={!p.local}
+							role="presentation"
+							title={p.local ? undefined : 'Clique direito para ajustar o volume'}
+							oncontextmenu={(e) => !p.local && openVolume(p.identity, e)}
+						>
 							{#if cam}
 								{#key cam.track}
 									<video {@attach attachTrack(cam.track)} class:mirror={cam.local} autoplay playsinline muted></video>
@@ -287,9 +314,13 @@
 								<span class="cell-avatar" aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}</span>
 							{/if}
 							<span class="cell-name">
+								<span class="q" style:background={QUALITY_COLOR[p.quality]} title="Qualidade da conexão"></span>
 								{#if !p.mic}<Icon name="mic-off" size={13} />{/if}
-								{p.name}{p.local ? ' (você)' : ''}
+								{p.name}{p.local ? ' (você)' : ''}{#if p.speaking}<span class="sr-only">, falando</span>{/if}
 							</span>
+							{#if !p.local}
+								<button class="vol-btn" aria-label={`Volume de ${p.name}`} onclick={(e) => openVolume(p.identity, e)}><Icon name="volume" size={16} /></button>
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -320,79 +351,82 @@
 			{/if}
 		</section>
 
-		{#if !grid && session.tiles.length > 1}
-			<aside class="strip" class:closed={!stripOpen} aria-label="Transmissões da sala">
+		{#if !grid}
+			<aside class="strip" class:closed={!stripOpen} aria-label="Transmissões e participantes">
 				<button class="handle" aria-label={stripOpen ? 'Recolher miniaturas' : 'Mostrar miniaturas'} aria-expanded={stripOpen} onclick={() => (stripOpen = !stripOpen)}>
 					<span class:rotate={!stripOpen}><Icon name="chevron-down" /></span>
 				</button>
 				{#if stripOpen}
-					{#each session.tiles as t (t.id)}
+					{#each session.tiles.filter((t) => t.screen) as t (t.id)}
 						<button
 							class="thumb"
 							class:active={t.id === session.focusId}
 							onclick={() => session && (session.focusId = t.id)}
-							aria-label={`Ver ${t.screen ? 'tela' : 'câmera'} de ${t.name}`}
+							aria-label={`Ver tela de ${t.name}`}
 						>
-							<video
-								{@attach attachTrack(t.track)}
-								class:mirror={t.local && !t.screen}
-								autoplay
-								playsinline
-								muted
-							></video>
-							<span><Icon name={t.screen ? 'screen' : 'camera'} size={13} /> {t.name}</span>
+							<video {@attach attachTrack(t.track)} autoplay playsinline muted></video>
+							<span class="thumb-name"><Icon name="screen" size={13} /> {t.name}</span>
 						</button>
+					{/each}
+					<!-- Everyone in the room: camera or initials, green while talking. -->
+					{#each session.people as p (p.identity)}
+						{@const cam = cameraOf(p.identity)}
+						<div class="thumb-wrap" role="presentation" oncontextmenu={(e) => !p.local && openVolume(p.identity, e)}>
+							<button
+								class="thumb"
+								class:active={!!cam && cam.id === session.focusId}
+								class:speaking={p.speaking}
+								onclick={(e) => (cam ? session && (session.focusId = cam.id) : !p.local && openVolume(p.identity, e))}
+								aria-label={cam ? `Ver câmera de ${p.name}` : p.local ? `${p.name} (você)` : `Volume de ${p.name}`}
+							>
+								{#if cam}
+									<video {@attach attachTrack(cam.track)} class:mirror={cam.local} autoplay playsinline muted></video>
+								{:else}
+									<span class="thumb-avatar" aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}</span>
+								{/if}
+								<span class="thumb-name">
+									<span class="q" style:background={QUALITY_COLOR[p.quality]}></span>
+									{#if !p.mic}<Icon name="mic-off" size={12} />{/if}
+									{p.name}{p.local ? ' (você)' : ''}
+								</span>
+							</button>
+							{#if !p.local}
+								<button class="vol-btn" aria-label={`Volume de ${p.name}`} onclick={(e) => openVolume(p.identity, e)}><Icon name="volume" size={14} /></button>
+							{/if}
+						</div>
 					{/each}
 				{/if}
 			</aside>
 		{/if}
 
-		{#if peopleOpen}
-			<aside class="people">
-				<div class="people-heading"><h2>Na sala <span>{session.people.length}</span></h2><button class="icon-button" aria-label="Fechar participantes" onclick={() => (peopleOpen = false)}><Icon name="close" size={18} /></button></div>
-				<label class="notify-toggle">
-					<input type="checkbox" bind:checked={notifyOn} onchange={() => (settings.notify = notifyOn)} />
-					Avisar entradas, saídas e telas
+		{#if volumeMenu && volumePerson}
+			<div class="volume-menu" role="dialog" aria-label={`Volume de ${volumePerson.name}`} style:left="{volumeMenu.x}px" style:top="{volumeMenu.y}px">
+				<p class="vm-name">{volumePerson.name}</p>
+				<label class="volume-label">Voz · {Math.round((session.voiceVolumes[volumePerson.identity] ?? 1) * 100)}%
+					<input
+						type="range"
+						min="0"
+						max="2"
+						step="0.05"
+						value={session.voiceVolumes[volumePerson.identity] ?? 1}
+						oninput={(e) => volumePerson && session?.setVoiceVolume(volumePerson.identity, +e.currentTarget.value)}
+						aria-label={`Volume da voz de ${volumePerson.name}`}
+					/>
 				</label>
-				{#each session.people as p (p.identity)}
-					<div class="person">
-						<span class="avatar" class:speaking={p.speaking} aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}<span class="dot" style:background={QUALITY_COLOR[p.quality]}></span></span>
-						<span class="pname">{p.name}<small>{p.local ? 'Você' : 'Participante'}</small></span>
-						<span class="media-indicators">
-							{#if p.screen}<span role="img" aria-label="Compartilhando tela"><Icon name="screen" size={15} /></span>{/if}
-							{#if p.camera}<span role="img" aria-label="Câmera ligada"><Icon name="camera" size={15} /></span>{/if}
-							<span role="img" aria-label={p.mic ? 'Microfone ligado' : 'Microfone desligado'}><Icon name={p.mic ? 'mic' : 'mic-off'} size={15} /></span>
-						</span>
-					</div>
-					{#if p.voice && !p.local}
-						<label class="volume-label">Voz · {Math.round((session.voiceVolumes[p.identity] ?? 1) * 100)}%
-						<input
-							type="range"
-							min="0"
-							max="2"
-							step="0.05"
-							value={session.voiceVolumes[p.identity] ?? 1}
-							oninput={(e) => session?.setVoiceVolume(p.identity, +e.currentTarget.value)}
-							aria-label={`Volume da voz de ${p.name}`}
-						/>
-						</label>
-					{/if}
-					{#if p.screenAudio && !p.local}
-						<label class="volume-label">Áudio da tela
+				{#if volumePerson.screenAudio}
+					<label class="volume-label">Áudio da tela · {Math.round((session.volumes[volumePerson.identity] ?? 1) * 100)}%
 						<input
 							type="range"
 							min="0"
 							max="1"
 							step="0.05"
-							value={session.volumes[p.identity] ?? 1}
-							oninput={(e) => session?.setScreenVolume(p.identity, +e.currentTarget.value)}
-							title="Volume do áudio da tela"
-							aria-label={`Volume do áudio da tela de ${p.name}`}
+							value={session.volumes[volumePerson.identity] ?? 1}
+							oninput={(e) => volumePerson && session?.setScreenVolume(volumePerson.identity, +e.currentTarget.value)}
+							aria-label={`Volume do áudio da tela de ${volumePerson.name}`}
 						/>
-						</label>
-					{/if}
-				{/each}
-			</aside>
+					</label>
+				{/if}
+			</div>
 		{/if}
 		</main>
 		<footer class="room-footer" class:quiet={!controls} onfocusin={poke} onmouseenter={() => clearTimeout(hideTimer)} onmouseleave={poke}>
@@ -443,9 +477,6 @@
 				{/if}
 			</div>
 			<span class="control-divider"></span>
-			<button class:on={peopleOpen} aria-label={`Participantes: ${session.people.length}`} aria-expanded={peopleOpen} onclick={() => (peopleOpen = !peopleOpen)}>
-				<Icon name="users" size={20} /><span class="people-count">{session.people.length}</span>
-			</button>
 			<button class="leave" onclick={leave}><Icon name="exit" size={20} /><span>Sair</span></button>
 		</nav>
 		</footer>
@@ -460,12 +491,21 @@
 {#if settingsOpen}
 	<dialog
 		class="settings-dialog"
-		aria-label="Configurações do servidor"
+		aria-label={session ? 'Configurações' : 'Configurações do servidor'}
 		{@attach (el: HTMLDialogElement) => { el.showModal(); }}
 		oncancel={() => (settingsOpen = false)}
 		onclose={() => (settingsOpen = false)}
 	>
-		{#if session}<p class="settings-context">As alterações serão usadas na próxima entrada. A conexão desta sala será mantida.</p>{/if}
+		{#if session}
+			<section class="room-prefs">
+				<h2>Sala</h2>
+				<label class="notify-toggle">
+					<input type="checkbox" bind:checked={notifyOn} onchange={() => (settings.notify = notifyOn)} />
+					Avisar entradas, saídas e telas
+				</label>
+			</section>
+			<p class="settings-context">As alterações do servidor serão usadas na próxima entrada. A conexão desta sala será mantida.</p>
+		{/if}
 		<ServerSettings onsaved={savedSettings} oncancel={() => (settingsOpen = false)} />
 	</dialog>
 {/if}
@@ -586,7 +626,7 @@
 		font-size: 13px;
 		line-height: 1.5;
 	}
-	.media-indicators, .thumb span {
+	.thumb-name {
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
@@ -633,7 +673,6 @@
 		gap: 12px;
 		padding: 16px 20px;
 	}
-	.room-content.with-people { grid-template-columns: minmax(0, 1fr) 264px; }
 	.stage {
 		position: relative;
 		grid-area: 1 / 1;
@@ -663,6 +702,28 @@
 		transition: border-color 0.15s, box-shadow 0.15s;
 	}
 	.cell.speaking { border-color: var(--ok); box-shadow: 0 0 18px color-mix(in srgb, var(--ok) 30%, transparent); }
+	.q { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+	/* Volume button: appears on hover/focus (Discord-style), always reachable by keyboard. */
+	.vol-btn {
+		position: absolute; top: 8px; right: 8px; z-index: 1; width: 30px; height: 30px; padding: 0;
+		background: #000a; color: #fff; border: none; border-radius: 8px; opacity: 0; transition: opacity 0.15s;
+	}
+	.cell:hover .vol-btn, .thumb-wrap:hover .vol-btn, .vol-btn:focus { opacity: 1; }
+	.thumb-wrap { position: relative; flex: 0 0 auto; display: flex; }
+	.thumb-wrap .vol-btn { top: 6px; right: 6px; width: 26px; height: 26px; }
+	.thumb.speaking { border-color: var(--ok); }
+	.thumb-avatar {
+		position: absolute; inset: 0; margin: auto; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px;
+		background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--fg); font-size: 13px; font-weight: 600;
+	}
+	.volume-menu {
+		position: fixed; z-index: 20; display: grid; gap: 10px; width: 260px; padding: 14px 16px 4px;
+		background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 16px 48px #0006;
+	}
+	.vm-name { margin: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.room-prefs { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+	.room-prefs h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+	.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 	.cell video { object-fit: cover; }
 	.cell-avatar {
 		/* Sized from the cell's smaller side so short cells never clip it. */
@@ -700,28 +761,18 @@
 	}
 	.thumb.active { border-color: var(--accent); }
 	.thumb video { width: 100%; height: 100%; object-fit: cover; }
-	.thumb span { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); font-size: 11px; background: #000b; padding: 3px 6px; border-radius: 5px; color: #fff; }
-	.people { grid-area: 1 / 2 / 3 / 3; min-height: 0; overflow-y: auto; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
-	.people-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-	.people-heading h2 { margin: 0; font-size: 14px; font-weight: 600; }
-	.people-heading h2 span { margin-left: 7px; color: var(--muted); font-size: 12px; font-weight: 400; }
-	.people-heading button { background: transparent; border: none; width: 30px; height: 30px; }
-	.notify-toggle { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; margin: 6px 0 18px; cursor: pointer; }
+	.thumb-name { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; background: #000b; padding: 3px 6px; border-radius: 5px; color: #fff; }
+	.notify-toggle { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; cursor: pointer; }
 	/* Undo the global text-input style (width: 100%, padding) for the checkbox. */
 	.notify-toggle input { flex: none; width: 14px; height: 14px; padding: 0; margin: 0; accent-color: var(--accent); }
-	.person { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--border); }
 	.avatar {
 		position: relative; width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center;
 		border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--fg); font-size: 11px; font-weight: 600;
 	}
-	.avatar .dot { position: absolute; bottom: -1px; right: -1px; border: 2px solid var(--card); box-sizing: content-box; }
-	.avatar.speaking { box-shadow: 0 0 0 2px var(--ok); }
 	.avatar.small { width: 34px; height: 34px; border-radius: 10px; }
-	.pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-	.pname small, .local-state small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
-	.media-indicators { color: var(--muted); gap: 6px; }
+	.local-state small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
 	/* Sliders are not text fields: drop the global input box (padding, border, background). */
-	.people input[type='range'] { width: 100%; margin: 0; padding: 0; border: none; background: none; accent-color: var(--accent); }
+	.volume-menu input[type='range'] { width: 100%; margin: 0; padding: 0; border: none; background: none; accent-color: var(--accent); }
 	.room-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 88px; padding: 12px 28px; border-top: 1px solid var(--border); }
 	.local-state { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 12px; }
 	.local-state > span:last-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -730,7 +781,6 @@
 	.controls button.on { background: color-mix(in srgb, var(--accent) 18%, var(--card)); border-color: var(--accent); }
 	.controls .leave { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); color: var(--danger); }
 	.control-divider { height: 24px; width: 1px; background: var(--border); margin: 0 4px; }
-	.people-count { font-variant-numeric: tabular-nums; }
 	.menu-anchor { position: relative; }
 	.menu { position: absolute; bottom: calc(100% + 12px); left: 0; display: grid; gap: 4px; padding: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; width: max-content; z-index: 5; box-shadow: 0 12px 40px #0004; }
 	.menu p { color: var(--muted); font-size: 11px; margin: 6px 8px; }
@@ -752,13 +802,6 @@
 		.room-header { padding: 0 20px; gap: 18px; }
 		.room-label { display: none; }
 	}
-	@media (max-width: 850px) {
-		.room-content.with-people { grid-template-columns: minmax(0, 1fr) 220px; }
-	}
-	@media (max-width: 640px) {
-		.room-content.with-people { grid-template-columns: minmax(0, 1fr); }
-		.people { grid-area: auto; position: fixed; right: 20px; top: 88px; bottom: 104px; width: min(280px, calc(100% - 40px)); z-index: 4; box-shadow: 0 16px 48px #0005; }
-	}
 	@media (max-width: 480px) {
 		.center {
 			padding: 16px;
@@ -776,10 +819,9 @@
 		.room-footer { padding: 12px 8px max(12px, env(safe-area-inset-bottom)); min-height: 80px; }
 		.controls { gap: 6px; width: 100%; justify-content: center; }
 		.controls button { padding: 10px; min-width: 42px; }
-		.controls button > span:not(.people-count) { display: none; }
+		.controls button > span { display: none; }
 		.control-divider { margin: 0; }
 		.thumb { width: 128px; }
-		.people { top: 72px; right: 10px; bottom: 90px; }
 	}
 	.volume-label { display: grid; gap: 8px; color: var(--muted); font-size: 11px; padding-bottom: 12px; }
 	@media (prefers-reduced-motion: reduce) {

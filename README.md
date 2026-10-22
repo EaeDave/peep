@@ -50,10 +50,11 @@ A página inicial apresenta o projeto e mostra o comando para o seu sistema.
 Na sala, o cabeçalho reúne código, conexão e configurações. Sem tela
 compartilhada, o palco mostra uma grade com todos os participantes (câmera ou
 iniciais), com borda verde em quem está falando, como no Discord; quando alguém
-compartilha, a tela ocupa o palco e as câmeras viram miniaturas. O painel "Na
-sala" abre por padrão, marca quem fala e ajusta o volume de voz e de tela de cada
-pessoa; abaixo de 640 px ele abre sobre o vídeo. Alterar o servidor durante uma
-sessão só afeta a próxima entrada; não derruba a conexão atual.
+compartilha, a tela ocupa o palco e a fileira embaixo mostra todos (câmera ou
+iniciais, com o mesmo verde de fala). O volume de cada pessoa abre com clique
+direito no bloco/miniatura ou no ícone de volume que aparece ao passar o mouse.
+Alterar o servidor durante uma sessão só afeta a próxima entrada; não derruba a
+conexão atual.
 
 - **Linux / Omarchy:** o comando `curl` instala o plugin Quickshell da última
   release. A URL do servidor vem da página, e o segredo é configurado localmente.
@@ -103,9 +104,10 @@ o Leve e depois para a supressão do navegador, com aviso na tela.
   compartilhar a tela: aviso na tela + som curto, e notificação do sistema quando
   a janela da sala não está em foco (no navegador/Omarchy, pela notificação do
   Chromium, autorizada no primeiro clique; no app Windows, notificação nativa via
-  `tauri-plugin-notification`). Desliga no painel "Na sala".
-- **Volume da voz:** cada participante tem um controle de 0 a 200% no painel "Na
-  sala", salvo pelo nome. O áudio recebido toca pelo Web Audio (`webAudioMix` do
+  `tauri-plugin-notification`). Desliga na engrenagem, seção "Sala".
+- **Volume da voz:** cada participante tem um controle de 0 a 200% (clique
+  direito no bloco da pessoa ou ícone de volume), salvo pelo nome. O áudio
+  recebido toca pelo Web Audio (`webAudioMix` do
   LiveKit) para permitir amplificar acima de 100%.
 
 ### Atualizações
