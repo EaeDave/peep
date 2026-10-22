@@ -24,8 +24,8 @@
 	let menu = $state(false);
 	let micMenu = $state(false);
 	let stripOpen = $state(true);
-	// Open by default; below 850px the panel overlays the video, so start closed there.
-	let peopleOpen = $state(window.innerWidth > 850);
+	// Open by default at any width; below 640px it overlays the video (closable).
+	let peopleOpen = $state(true);
 	let controls = $state(true);
 	let hideTimer: ReturnType<typeof setTimeout>;
 	let statsTimer: ReturnType<typeof setInterval>;
@@ -694,6 +694,11 @@
 		.room-footer { justify-content: center; }
 		.room-header { padding: 0 20px; gap: 18px; }
 		.room-label { display: none; }
+	}
+	@media (max-width: 850px) {
+		.room-content.with-people { grid-template-columns: minmax(0, 1fr) 220px; }
+	}
+	@media (max-width: 640px) {
 		.room-content.with-people { grid-template-columns: minmax(0, 1fr); }
 		.people { grid-area: auto; position: fixed; right: 20px; top: 88px; bottom: 104px; width: min(280px, calc(100% - 40px)); z-index: 4; box-shadow: 0 16px 48px #0005; }
 	}
