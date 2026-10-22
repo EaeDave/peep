@@ -24,17 +24,20 @@ type Config struct {
 	InviteSecret      string
 	PublicWSURL       string
 	AllowedOrigins    []string
+	// Admin panel; disabled (routes absent) unless both are set.
+	AdminUser, AdminPassword string
 }
 
 type Server struct {
-	cfg   Config
-	store *rooms.Store
-	lk    *lksdk.RoomServiceClient
-	rl    *limiter
+	cfg     Config
+	store   *rooms.Store
+	lk      *lksdk.RoomServiceClient
+	rl      *limiter
+	loginRL *limiter
 }
 
 func New(cfg Config, store *rooms.Store, lk *lksdk.RoomServiceClient) *Server {
-	return &Server{cfg: cfg, store: store, lk: lk, rl: newLimiter(30, time.Minute)}
+	return &Server{cfg: cfg, store: store, lk: lk, rl: newLimiter(30, time.Minute), loginRL: newLimiter(5, time.Minute)}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -44,6 +47,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /rooms/{code}/join", s.auth(s.joinRoom))
 	mux.Handle("GET /rooms/{code}", s.auth(s.getRoom))
 	mux.Handle("POST /rooms/{code}/stats", s.auth(s.roomStats))
+	if s.adminEnabled() {
+		mux.HandleFunc("POST /admin/login", s.adminLogin)
+		mux.Handle("GET /admin/rooms", s.adminAuth(s.adminRooms))
+		mux.Handle("POST /admin/rooms/{code}/close", s.adminAuth(s.adminClose))
+		mux.Handle("POST /admin/rooms/{code}/kick", s.adminAuth(s.adminKick))
+	}
 	return s.cors(s.rateLimit(mux))
 }
 
@@ -148,6 +157,7 @@ func (s *Server) SweepLoop(ctx context.Context, every time.Duration) {
 		case <-t.C:
 		}
 		s.rl.prune(time.Now())
+		s.loginRL.prune(time.Now())
 		lctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		res, err := s.lk.ListRooms(lctx, &livekit.ListRoomsRequest{})
 		cancel()

@@ -85,6 +85,21 @@ func (s *Store) Exists(code string, now time.Time) bool {
 	return ok
 }
 
+// CreatedAt returns when code was created, if it is registered.
+func (s *Store) CreatedAt(code string) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.m[code]
+	return e.createdAt, ok
+}
+
+// Delete invalidates code immediately (admin closed the room).
+func (s *Store) Delete(code string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.m, code)
+}
+
 // Sweep drops codes older than MaxAge or absent from live for longer than
 // EmptyGrace. live holds room names currently present in LiveKit.
 func (s *Store) Sweep(now time.Time, live map[string]bool) (removed int) {

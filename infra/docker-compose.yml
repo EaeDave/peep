@@ -23,6 +23,9 @@ services:
       INVITE_SECRET: "${INVITE_SECRET:?}"
       PUBLIC_LIVEKIT_WS_URL: "${PUBLIC_LIVEKIT_WS_URL:?}"
       CORS_ORIGINS: "${CORS_ORIGINS:-}"
+      # Optional admin panel (/admin); disabled unless both are set.
+      ADMIN_USER: "${ADMIN_USER:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       PORT: "8080"
 
   web:

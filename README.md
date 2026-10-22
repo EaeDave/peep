@@ -114,6 +114,20 @@ o Leve e depois para a supressão do navegador, com aviso na tela.
   recebido toca pelo Web Audio (`webAudioMix` do
   LiveKit) para permitir amplificar acima de 100%.
 
+### Painel administrativo
+
+`/admin` no site (sem link em nenhuma página) mostra as salas ativas agora:
+código, há quanto tempo existe e quem está nela (nome, tempo, microfone, câmera,
+tela). Atualiza a cada 5 s. Ações, com confirmação: **Encerrar sala** (desconecta
+todos e invalida o código) e **Remover** uma pessoa (ela pode voltar enquanto o
+código valer).
+
+- Ligado só com `ADMIN_USER` e `ADMIN_PASSWORD` no servidor; sem eles, as rotas
+  `/admin/*` da API não existem.
+- Sem banco: tudo vem do LiveKit na hora. O login gera um token assinado
+  (HMAC) de 8 h, guardado só na aba; trocar a senha invalida as sessões.
+  Login limitado a 5 tentativas por minuto por IP.
+
 ### Atualizações
 
 Os dois clientes mostram a versão atual no rodapé do popup e procuram uma nova

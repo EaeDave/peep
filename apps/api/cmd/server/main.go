@@ -36,6 +36,8 @@ func main() {
 		PublicWSURL:  mustEnv("PUBLIC_LIVEKIT_WS_URL"),
 		// Tauri origins are always allowed (Windows client).
 		AllowedOrigins: []string{"tauri://localhost", "http://tauri.localhost"},
+		AdminUser:      os.Getenv("ADMIN_USER"),
+		AdminPassword:  os.Getenv("ADMIN_PASSWORD"),
 	}
 	for _, o := range strings.Split(os.Getenv("CORS_ORIGINS"), ",") {
 		if o = strings.TrimSpace(o); o != "" {
@@ -61,7 +63,7 @@ func main() {
 		defer cancel()
 		hs.Shutdown(sctx)
 	}()
-	slog.Info("listening", "port", port, "origins", cfg.AllowedOrigins)
+	slog.Info("listening", "port", port, "origins", cfg.AllowedOrigins, "admin", cfg.AdminUser != "" && cfg.AdminPassword != "")
 	if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server", "err", err)
 		os.Exit(1)
