@@ -1,6 +1,10 @@
 # LiveKit config — no secrets/domains here.
 # Keys come from LIVEKIT_KEYS, TURN domain from LIVEKIT_TURN_DOMAIN (Coolify env).
 port: 7880
+# API endpoint for signed lifecycle events; adjust when deploying on another domain.
+webhook:
+  urls:
+    - https://peep-api.eaedave.xyz/webhooks/livekit
 rtc:
   tcp_port: 7881
   port_range_start: 50000

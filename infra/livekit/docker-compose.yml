@@ -9,3 +9,4 @@ services:
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?}: ${LIVEKIT_API_SECRET:?}"
       LIVEKIT_TURN_DOMAIN: "${TURN_DOMAIN:?}"
+      LIVEKIT_WEBHOOK_API_KEY: "${LIVEKIT_API_KEY:?}"
