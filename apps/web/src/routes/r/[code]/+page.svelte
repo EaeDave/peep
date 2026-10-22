@@ -7,7 +7,7 @@
 	import { QUALITY, type QualityMode, Session } from '#lib/livekit/session.svelte.ts';
 	import type { NoiseMode } from '#lib/livekit/noiseFilter.ts';
 	import { isTauri, leaveViewer } from '#lib/platform.ts';
-	import { askNotificationPermission, chime, type NoticeKind, systemNotify } from '#lib/notify.ts';
+	import { askNotificationPermission, type NoticeKind, preloadRoomSounds, roomSound, systemNotify } from '#lib/notify.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
 
@@ -39,6 +39,7 @@
 		else if (name) connect();
 		poke();
 		askNotificationPermission();
+		preloadRoomSounds();
 		// Quality sample every 15 s while connected; read server-side to diagnose drops.
 		statsTimer = setInterval(async () => {
 			const s = session;
@@ -94,6 +95,7 @@
 			next.onNotice = notice;
 			session = next;
 			await next.connect(url, token);
+			if (notifyOn && !destroyed) void roomSound('selfJoin');
 			if (destroyed) await next.room.disconnect();
 		} catch (e) {
 			await next?.room.disconnect();
@@ -116,7 +118,7 @@
 		if (!notifyOn) return;
 		const text = `${who} ${NOTICE_TEXT[kind]}`;
 		flash(text);
-		chime(kind);
+		void roomSound(kind);
 		void systemNotify(`Peep · ${code}`, text);
 	}
 
@@ -179,7 +181,12 @@
 	}
 
 	async function leave() {
+		// Play the goodbye before the window closes (Tauri) or the page changes; capped.
+		const bye = notifyOn ? roomSound('selfLeave') : Promise.resolve();
+		const cap = Promise.withResolvers<void>();
+		setTimeout(cap.resolve, 700);
 		await session?.room.disconnect();
+		await Promise.race([bye, cap.promise]);
 		await leaveViewer();
 	}
 
@@ -501,7 +508,7 @@
 				<h2>Sala</h2>
 				<label class="notify-toggle">
 					<input type="checkbox" bind:checked={notifyOn} onchange={() => (settings.notify = notifyOn)} />
-					Avisar entradas, saídas e telas
+					Avisos e sons de entrada, saída e telas
 				</label>
 			</section>
 			<p class="settings-context">As alterações do servidor serão usadas na próxima entrada. A conexão desta sala será mantida.</p>

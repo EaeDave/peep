@@ -101,10 +101,14 @@ o Leve e depois para a supressão do navegador, com aviso na tela.
 ### Avisos e volume por pessoa
 
 - **Avisos:** quem já está na sala é avisado quando alguém entra, sai ou começa a
-  compartilhar a tela: aviso na tela + som curto, e notificação do sistema quando
+  compartilhar a tela: aviso na tela + som, e notificação do sistema quando
   a janela da sala não está em foco (no navegador/Omarchy, pela notificação do
   Chromium, autorizada no primeiro clique; no app Windows, notificação nativa via
   `tauri-plugin-notification`). Desliga na engrenagem, seção "Sala".
+- **Sons da sala:** entrada própria, entrada de alguém, compartilhamento e saída
+  própria usam sons do [Kenney](https://kenney.nl) (CC0, `static/sounds/`,
+  normalizados a -20 dB); a saída de alguém é sintetizada. Volume padrão de 15%.
+  O som de saída toca antes de a janela fechar.
 - **Volume da voz:** cada participante tem um controle de 0 a 200% (clique
   direito no bloco da pessoa ou ícone de volume), salvo pelo nome. O áudio
   recebido toca pelo Web Audio (`webAudioMix` do
