@@ -1,5 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { nativeFeel } from '#lib/nativeFeel.ts';
+
 	let { children } = $props();
+	onMount(nativeFeel);
 </script>
 
 {@render children()}
@@ -95,6 +99,14 @@
 		.error {
 			color: var(--danger);
 			font-size: 13px;
+		}
+		/* Desktop app: UI text isn't selectable like a web page; fields still are. */
+		.app-window body {
+			user-select: none;
+		}
+		.app-window input,
+		.app-window textarea {
+			user-select: text;
 		}
 	}
 </style>
