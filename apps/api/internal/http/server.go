@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/livekit/protocol/livekit"
-	lksdk "github.com/livekit/server-sdk-go/v2"
 
 	"peep/api/internal/rooms"
 	"peep/api/internal/token"
@@ -28,15 +27,23 @@ type Config struct {
 	AdminUser, AdminPassword string
 }
 
+// LiveKit is the subset of lksdk.RoomServiceClient the API uses (fakeable in tests).
+type LiveKit interface {
+	ListRooms(context.Context, *livekit.ListRoomsRequest) (*livekit.ListRoomsResponse, error)
+	ListParticipants(context.Context, *livekit.ListParticipantsRequest) (*livekit.ListParticipantsResponse, error)
+	DeleteRoom(context.Context, *livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error)
+	RemoveParticipant(context.Context, *livekit.RoomParticipantIdentity) (*livekit.RemoveParticipantResponse, error)
+}
+
 type Server struct {
 	cfg     Config
 	store   *rooms.Store
-	lk      *lksdk.RoomServiceClient
+	lk      LiveKit
 	rl      *limiter
 	loginRL *limiter
 }
 
-func New(cfg Config, store *rooms.Store, lk *lksdk.RoomServiceClient) *Server {
+func New(cfg Config, store *rooms.Store, lk LiveKit) *Server {
 	return &Server{cfg: cfg, store: store, lk: lk, rl: newLimiter(30, time.Minute), loginRL: newLimiter(5, time.Minute)}
 }
 
@@ -85,12 +92,32 @@ func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"code": code, "expiresAt": exp.UTC().Format(time.RFC3339)})
 }
 
+// code resolves the path code. Unknown codes are looked up in LiveKit: after an
+// API restart the in-memory store is empty while rooms keep running there.
 func (s *Server) code(w http.ResponseWriter, r *http.Request) (string, bool) {
 	code, ok := rooms.Normalize(r.PathValue("code"))
-	if !ok || !s.store.Exists(code, time.Now()) {
+	if !ok {
 		writeErr(w, http.StatusNotFound, "room not found")
 		return "", false
 	}
+	now := time.Now()
+	if s.store.Exists(code, now) {
+		return code, true
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	res, err := s.lk.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{code}})
+	if err != nil {
+		slog.Warn("recover room: livekit", "code", code, "err", err)
+		writeErr(w, http.StatusServiceUnavailable, "livekit unavailable")
+		return "", false
+	}
+	if len(res.Rooms) == 0 {
+		writeErr(w, http.StatusNotFound, "room not found")
+		return "", false
+	}
+	s.store.Adopt(code, time.Unix(res.Rooms[0].CreationTime, 0), now)
+	slog.Info("room recovered from livekit", "code", code)
 	return code, true
 }
 

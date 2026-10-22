@@ -1,7 +1,8 @@
 # Deploy — Peep
 
-Stack: `livekit` (host network) + `room-api` + `web` em um único recurso
-**Docker Compose** do Coolify, com auto-deploy a cada push na `main`.
+Dois recursos **Docker Compose** no Coolify, com auto-deploy a cada push na `main`:
+`room-api` + `web` (`/infra`) e `livekit` em host network (`/infra/livekit`).
+Separados para que deploys da API/site nunca reiniciem o servidor de mídia.
 Os hostnames abaixo são exemplos; use os seus (são configurados por env).
 
 | Host | Destino |
@@ -70,12 +71,19 @@ Dynamic Configurations). O Traefik recarrega sozinho.
 
 ## 4. Coolify
 
-- Recurso: **GitHub App / Public Repository** → este repo, branch `main`.
-- Build pack: **Docker Compose**, Base Directory `/infra`, Docker Compose Location `/docker-compose.yml`.
-- Domínios: `room-api` → `https://api.DOMINIO:8080`; `web` → `https://call.DOMINIO:8080`.
+- Recursos: **GitHub App / Public Repository** → este repo, branch `main`, build
+  pack **Docker Compose**, Docker Compose Location `/docker-compose.yml`:
+  - **API + site:** Base Directory `/infra`. Domínios: `room-api` →
+    `https://api.DOMINIO:8080`; `web` → `https://call.DOMINIO:8080`. Watch paths:
+    `apps/api/**`, `apps/web/**`, `infra/docker-compose.yml`.
+  - **LiveKit:** Base Directory `/infra/livekit`, sem domínio (Traefik dynamic
+    config). Watch paths: `infra/livekit/**`. Variáveis: `LIVEKIT_API_KEY`,
+    `LIVEKIT_API_SECRET`, `TURN_DOMAIN`. Mexer nele derruba chamadas em andamento:
+    só faça deploy com as salas vazias (o painel `/admin` mostra).
 - Variáveis: ver `.env.example`. Gere as chaves com
   `docker run --rm livekit/livekit-server generate-keys`.
-- Auto-deploy: ligado (push na `main` dispara o deploy pelo GitHub App).
+- Se a API reiniciar, salas ainda vivas no LiveKit são reconhecidas na próxima
+  entrada (o código é recuperado consultando o LiveKit); sem banco de dados.
 
 ## 5. Smoke test
 

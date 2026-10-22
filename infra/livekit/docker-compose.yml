@@ -1,0 +1,10 @@
+# Separate Coolify app (Base Directory "/infra/livekit"): API/web deploys never
+# restart the media server. Redeploys only when this directory changes.
+services:
+  livekit:
+    build: .
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?}: ${LIVEKIT_API_SECRET:?}"
+      LIVEKIT_TURN_DOMAIN: "${TURN_DOMAIN:?}"

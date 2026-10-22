@@ -20,6 +20,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 	if (res.status === 401) throw new ApiError('Chave de acesso ao servidor inválida. Abra as configurações para corrigi-la.');
 	if (res.status === 404) throw new ApiError('Sala não existe');
 	if (res.status === 429) throw new ApiError('Muitas tentativas, aguarde um minuto');
+	if (res.status === 503) throw new ApiError('Servidor de chamadas indisponível no momento. Tente de novo em instantes.');
 	const msg = await res
 		.json()
 		.then((j) => j.error as string)

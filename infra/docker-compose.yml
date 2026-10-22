@@ -1,14 +1,8 @@
 # Coolify: Docker Compose build pack, Base Directory "/infra",
 # Docker Compose Location "/docker-compose.yml". See infra/README.md.
+# LiveKit is a separate Coolify app (infra/livekit/docker-compose.yml), so
+# deploying the API/web never restarts the media server or drops calls.
 services:
-  livekit:
-    build: ./livekit
-    network_mode: host
-    restart: unless-stopped
-    environment:
-      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?}: ${LIVEKIT_API_SECRET:?}"
-      LIVEKIT_TURN_DOMAIN: "${TURN_DOMAIN:?}"
-
   room-api:
     build: ../apps/api
     restart: unless-stopped

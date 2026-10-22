@@ -100,6 +100,16 @@ func (s *Store) Delete(code string) {
 	delete(s.m, code)
 }
 
+// Adopt registers a code that is live in LiveKit but unknown here (lost on an
+// API restart). createdAt comes from LiveKit, so MaxAge still applies.
+func (s *Store) Adopt(code string, createdAt, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.m[code]; !ok {
+		s.m[code] = entry{createdAt, now}
+	}
+}
+
 // Sweep drops codes older than MaxAge or absent from live for longer than
 // EmptyGrace. live holds room names currently present in LiveKit.
 func (s *Store) Sweep(now time.Time, live map[string]bool) (removed int) {
