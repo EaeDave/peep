@@ -108,6 +108,7 @@
 		.app-window input,
 		.app-window textarea {
 			user-select: text;
+			caret-color: var(--accent);
 		}
 		/* Branded cursors (desktop app only). !important: components set their own
 		   `cursor: pointer` with higher-specificity scoped selectors. */
@@ -118,7 +119,7 @@
 			cursor: url('/cursors/arrow.svg') 4 3, default !important;
 		}
 		.app-window :is(input:not([type='checkbox'], [type='range']), textarea) {
-			cursor: text !important;
+			cursor: url('/cursors/text.svg') 12 12, text !important;
 		}
 	}
 </style>
