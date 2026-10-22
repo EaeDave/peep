@@ -95,6 +95,17 @@ os arquivos WASM são servidos pelo próprio site. Com o filtro ativo, a supress
 do navegador é desligada para evitar voz metálica. Se o modelo falhar, cai para
 o Leve e depois para a supressão do navegador, com aviso na tela.
 
+### Avisos e volume por pessoa
+
+- **Avisos:** quem já está na sala é avisado quando alguém entra, sai ou começa a
+  compartilhar a tela: aviso na tela + som curto, e notificação do sistema quando
+  a janela da sala não está em foco (no navegador/Omarchy, pela notificação do
+  Chromium, autorizada no primeiro clique; no app Windows, notificação nativa via
+  `tauri-plugin-notification`). Desliga no painel "Na sala".
+- **Volume da voz:** cada participante tem um controle de 0 a 200% no painel "Na
+  sala", salvo pelo nome. O áudio recebido toca pelo Web Audio (`webAudioMix` do
+  LiveKit) para permitir amplificar acima de 100%.
+
 ### Atualizações
 
 Os dois clientes mostram a versão atual no rodapé do popup e procuram uma nova

@@ -13,6 +13,7 @@ import {
 import { settings } from '#lib/config.ts';
 import { hasNativeScreenAudio, type NativeAudio, startNativeAudio } from './screenAudio.ts';
 import { captureFor, fallbackChain, type NoiseMode, noiseFilter, preloadNoise } from './noiseFilter.ts';
+import type { NoticeKind } from '#lib/notify.ts';
 
 export type QualityMode = 'jogo' | 'texto' | 'eco';
 
@@ -69,6 +70,8 @@ export interface Person {
 	camera: boolean;
 	mic: boolean;
 	screenAudio: boolean;
+	/** Has a microphone published (muted or not): its voice volume can be set. */
+	voice: boolean;
 	quality: ConnectionQuality;
 }
 
@@ -76,6 +79,10 @@ export class Session {
 	readonly room = new Room({
 		adaptiveStream: true,
 		dynacast: true,
+		// Remote audio plays through a Web Audio gain node: per-person volume up to 200%
+		// (element.volume stops at 100%). Chrome's echo canceller references all
+		// Chrome output, Web Audio included.
+		webAudioMix: true,
 		videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
 		audioCaptureDefaults: settings.micId ? { deviceId: settings.micId } : undefined
 	});
@@ -89,6 +96,10 @@ export class Session {
 	micOn = $state(false);
 	audioBlocked = $state(false);
 	volumes = $state<Record<string, number>>({});
+	/** Voice volume per remote identity (0..1), restored by display name. */
+	voiceVolumes = $state<Record<string, number>>({});
+	/** Join/leave/screen-share notices for the people already in the room. */
+	onNotice: ((kind: NoticeKind, name: string) => void) | null = null;
 	micDevices = $state<MediaDeviceInfo[]>([]);
 	micDeviceId = $state(settings.micId);
 	noiseMode = $state<NoiseMode>(settings.noiseMode);
@@ -98,13 +109,27 @@ export class Session {
 	constructor() {
 		const r = this.room;
 		const refresh = () => this.#refresh();
-		r.on(RoomEvent.ParticipantConnected, refresh)
-			.on(RoomEvent.ParticipantDisconnected, refresh)
-			.on(RoomEvent.TrackPublished, refresh)
+		r.on(RoomEvent.ParticipantConnected, (p) => {
+			this.onNotice?.('join', p.name || p.identity);
+			refresh();
+		})
+			.on(RoomEvent.ParticipantDisconnected, (p) => {
+				this.onNotice?.('leave', p.name || p.identity);
+				refresh();
+			})
+			.on(RoomEvent.TrackPublished, (pub, p) => {
+				if (pub.source === Track.Source.ScreenShare) this.onNotice?.('share', p.name || p.identity);
+				refresh();
+			})
 			.on(RoomEvent.TrackUnpublished, refresh)
-			.on(RoomEvent.TrackSubscribed, (t) => {
+			.on(RoomEvent.TrackSubscribed, (t, pub, p) => {
 				// Mic + screen-share audio. RemoteParticipant.setVolume persists per source.
 				if (t.kind === Track.Kind.Audio) document.body.append(t.attach());
+				if (pub.source === Track.Source.Microphone) {
+					const v = settings.voiceVolume(p.name || p.identity);
+					this.voiceVolumes[p.identity] = v;
+					p.setVolume(v, Track.Source.Microphone);
+				}
 				refresh();
 			})
 			.on(RoomEvent.TrackUnsubscribed, (t) => {
@@ -148,6 +173,15 @@ export class Session {
 		this.room.remoteParticipants.get(identity)?.setVolume(v, Track.Source.ScreenShareAudio);
 	}
 
+	/** Voice volume of one participant (0..1), remembered by name. */
+	setVoiceVolume(identity: string, v: number) {
+		const p = this.room.remoteParticipants.get(identity);
+		if (!p) return;
+		this.voiceVolumes[identity] = v;
+		p.setVolume(v, Track.Source.Microphone);
+		settings.setVoiceVolume(p.name || p.identity, v);
+	}
+
 	#refresh() {
 		const lp = this.room.localParticipant;
 		const all: Participant[] = [lp, ...this.room.remoteParticipants.values()];
@@ -181,6 +215,7 @@ export class Session {
 				camera: live(Track.Source.Camera),
 				mic: live(Track.Source.Microphone),
 				screenAudio: !!pub(Track.Source.ScreenShareAudio),
+				voice: !!pub(Track.Source.Microphone),
 				quality: p.connectionQuality
 			});
 		}

@@ -18,6 +18,7 @@
 	"dependencies": {
 		"@sapphi-red/web-noise-suppressor": "^0.4.1",
 		"@tauri-apps/api": "^2.12.4",
+		"@tauri-apps/plugin-notification": "^2.7.0",
 		"livekit-client": "^2.23.0"
 	},
 	"devDependencies": {

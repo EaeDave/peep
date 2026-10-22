@@ -208,6 +208,8 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Join/leave/screen-share notices as native Windows toasts.
+        .plugin(tauri_plugin_notification::init())
         .manage(PendingUpdate::default())
         .manage(audio::ScreenAudio::default())
         .invoke_handler(tauri::generate_handler![
@@ -274,7 +276,8 @@ fn main() {
                         .permission("allow-check-update")
                         .permission("allow-install-update")
                         .permission("allow-start-screen-audio")
-                        .permission("allow-stop-screen-audio"),
+                        .permission("allow-stop-screen-audio")
+                        .permission("notification:default"),
                 )?;
             }
             let popup = WebviewWindowBuilder::new(app, POPUP, page("join"))

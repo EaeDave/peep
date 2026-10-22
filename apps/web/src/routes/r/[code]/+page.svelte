@@ -7,6 +7,7 @@
 	import { QUALITY, type QualityMode, Session } from '#lib/livekit/session.svelte.ts';
 	import type { NoiseMode } from '#lib/livekit/noiseFilter.ts';
 	import { isTauri, leaveViewer } from '#lib/platform.ts';
+	import { askNotificationPermission, chime, type NoticeKind, systemNotify } from '#lib/notify.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
 
@@ -26,6 +27,7 @@
 	let stripOpen = $state(true);
 	// Open by default at any width; below 640px it overlays the video (closable).
 	let peopleOpen = $state(true);
+	let notifyOn = $state(settings.notify);
 	let controls = $state(true);
 	let hideTimer: ReturnType<typeof setTimeout>;
 	let statsTimer: ReturnType<typeof setInterval>;
@@ -36,6 +38,7 @@
 		if (!validConfig()) settingsOpen = true;
 		else if (name) connect();
 		poke();
+		askNotificationPermission();
 		// Quality sample every 15 s while connected; read server-side to diagnose drops.
 		statsTimer = setInterval(async () => {
 			const s = session;
@@ -88,6 +91,7 @@
 			const { token, url } = await joinRoom(code, settings.name);
 			if (destroyed) return;
 			next = new Session();
+			next.onNotice = notice;
 			session = next;
 			await next.connect(url, token);
 			if (destroyed) await next.room.disconnect();
@@ -100,6 +104,20 @@
 		} finally {
 			connecting = false;
 		}
+	}
+
+	const NOTICE_TEXT: Record<NoticeKind, string> = {
+		join: 'entrou na sala',
+		leave: 'saiu da sala',
+		share: 'começou a compartilhar a tela'
+	};
+
+	function notice(kind: NoticeKind, who: string) {
+		if (!notifyOn) return;
+		const text = `${who} ${NOTICE_TEXT[kind]}`;
+		flash(text);
+		chime(kind);
+		void systemNotify(`Peep · ${code}`, text);
 	}
 
 	function flash(msg: string) {
@@ -317,7 +335,10 @@
 		{#if peopleOpen}
 			<aside class="people">
 				<div class="people-heading"><h2>Na sala <span>{session.people.length}</span></h2><button class="icon-button" aria-label="Fechar participantes" onclick={() => (peopleOpen = false)}><Icon name="close" size={18} /></button></div>
-				<p class="people-help">Uma sala, a mesma tela.</p>
+				<label class="notify-toggle">
+					<input type="checkbox" bind:checked={notifyOn} onchange={() => (settings.notify = notifyOn)} />
+					Avisar entradas, saídas e telas
+				</label>
 				{#each session.people as p (p.identity)}
 					<div class="person">
 						<span class="avatar" aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}<span class="dot" style:background={QUALITY_COLOR[p.quality]}></span></span>
@@ -328,6 +349,19 @@
 							<span role="img" aria-label={p.mic ? 'Microfone ligado' : 'Microfone desligado'}><Icon name={p.mic ? 'mic' : 'mic-off'} size={15} /></span>
 						</span>
 					</div>
+					{#if p.voice && !p.local}
+						<label class="volume-label">Voz · {Math.round((session.voiceVolumes[p.identity] ?? 1) * 100)}%
+						<input
+							type="range"
+							min="0"
+							max="2"
+							step="0.05"
+							value={session.voiceVolumes[p.identity] ?? 1}
+							oninput={(e) => session?.setVoiceVolume(p.identity, +e.currentTarget.value)}
+							aria-label={`Volume da voz de ${p.name}`}
+						/>
+						</label>
+					{/if}
 					{#if p.screenAudio && !p.local}
 						<label class="volume-label">Áudio da tela
 						<input
@@ -653,7 +687,8 @@
 	.people-heading h2 { margin: 0; font-size: 14px; font-weight: 600; }
 	.people-heading h2 span { margin-left: 7px; color: var(--muted); font-size: 12px; font-weight: 400; }
 	.people-heading button { background: transparent; border: none; width: 30px; height: 30px; }
-	.people-help { color: var(--muted); font-size: 11px; margin: 2px 0 22px; }
+	.notify-toggle { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; margin: 6px 0 18px; cursor: pointer; }
+	.notify-toggle input { accent-color: var(--accent); margin: 0; }
 	.person { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--border); }
 	.avatar {
 		position: relative; width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center;

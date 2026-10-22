@@ -15,6 +15,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 serde_json = "1"
+tauri-plugin-notification = "2"
 
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.26"

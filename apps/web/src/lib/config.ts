@@ -55,10 +55,37 @@ export const settings = {
 	set noiseMode(v: 'strong' | 'light' | 'off') {
 		set('noiseMode', v);
 	},
+	/** Join/leave/share notices (in-app + system); on unless turned off. */
+	get notify() {
+		return get('notify') !== 'off';
+	},
+	set notify(on: boolean) {
+		set('notify', on ? 'on' : 'off');
+	},
+	/** Voice volume (0..2, Discord-style boost) per display name: identities change on every join. */
+	voiceVolume(name: string): number {
+		const v = readVolumes()[name];
+		return typeof v === 'number' && v >= 0 && v <= 2 ? v : 1;
+	},
+	setVoiceVolume(name: string, v: number) {
+		const all = readVolumes();
+		if (v === 1) delete all[name];
+		else all[name] = v;
+		set('voiceVolumes', JSON.stringify(all));
+	},
 	get configured() {
 		return !!(this.secret && this.apiUrl);
 	}
 };
+
+function readVolumes(): Record<string, unknown> {
+	try {
+		const v: unknown = JSON.parse(get('voiceVolumes') || '{}');
+		return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+	} catch {
+		return {};
+	}
+}
 
 /** Validates a user-configured API endpoint before sending a server access key. */
 export function normalizeServerUrl(raw: string): string {
