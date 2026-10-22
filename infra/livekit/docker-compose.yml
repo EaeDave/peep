@@ -1,5 +1,6 @@
 # Separate Coolify app (Base Directory "/infra/livekit"): API/web deploys never
-# restart the media server. Redeploys only when this directory changes.
+# restart the media server. Redeploys only when this directory changes, which
+# drops calls in progress: check /admin for empty rooms before pushing here.
 services:
   livekit:
     build: .
