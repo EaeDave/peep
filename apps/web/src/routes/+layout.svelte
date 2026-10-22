@@ -103,10 +103,22 @@
 		/* Desktop app: UI text isn't selectable like a web page; fields still are. */
 		.app-window body {
 			user-select: none;
+			cursor: url('/cursors/arrow.svg') 4 3, default;
 		}
 		.app-window input,
 		.app-window textarea {
 			user-select: text;
+		}
+		/* Branded cursors (desktop app only). !important: components set their own
+		   `cursor: pointer` with higher-specificity scoped selectors. */
+		.app-window :is(button, a[href], label, select, summary, [role='button'], input[type='checkbox'], input[type='range']) {
+			cursor: url('/cursors/pointer.svg') 10 2, pointer !important;
+		}
+		.app-window :is(button:disabled, input:disabled) {
+			cursor: url('/cursors/arrow.svg') 4 3, default !important;
+		}
+		.app-window :is(input:not([type='checkbox'], [type='range']), textarea) {
+			cursor: text !important;
 		}
 	}
 </style>

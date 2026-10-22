@@ -649,7 +649,8 @@
 		background: var(--bg);
 		color: var(--fg);
 	}
-	.cursor-hidden { cursor: none; }
+	/* Idle: hide the cursor everywhere in the room, over the app's branded cursors too. */
+	.viewer.cursor-hidden, .viewer.cursor-hidden :global(*) { cursor: none !important; }
 	.room-header {
 		display: flex;
 		align-items: center;
