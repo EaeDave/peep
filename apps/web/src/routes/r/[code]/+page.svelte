@@ -688,7 +688,8 @@
 	.people-heading h2 span { margin-left: 7px; color: var(--muted); font-size: 12px; font-weight: 400; }
 	.people-heading button { background: transparent; border: none; width: 30px; height: 30px; }
 	.notify-toggle { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; margin: 6px 0 18px; cursor: pointer; }
-	.notify-toggle input { accent-color: var(--accent); margin: 0; }
+	/* Undo the global text-input style (width: 100%, padding) for the checkbox. */
+	.notify-toggle input { flex: none; width: 14px; height: 14px; padding: 0; margin: 0; accent-color: var(--accent); }
 	.person { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--border); }
 	.avatar {
 		position: relative; width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center;
@@ -699,7 +700,8 @@
 	.pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 	.pname small, .local-state small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
 	.media-indicators { color: var(--muted); gap: 6px; }
-	.people input[type='range'] { width: 100%; accent-color: var(--accent); }
+	/* Sliders are not text fields: drop the global input box (padding, border, background). */
+	.people input[type='range'] { width: 100%; margin: 0; padding: 0; border: none; background: none; accent-color: var(--accent); }
 	.room-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 88px; padding: 12px 28px; border-top: 1px solid var(--border); }
 	.local-state { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 12px; }
 	.local-state > span:last-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
