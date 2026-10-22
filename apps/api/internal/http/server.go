@@ -25,6 +25,7 @@ type Config struct {
 	AllowedOrigins    []string
 	// Admin panel; disabled (routes absent) unless both are set.
 	AdminUser, AdminPassword string
+	DiscordWebhookURL        string
 }
 
 // LiveKit is the subset of lksdk.RoomServiceClient the API uses (fakeable in tests).
@@ -41,6 +42,7 @@ type Server struct {
 	lk      LiveKit
 	rl      *limiter
 	loginRL *limiter
+	discord discordEvents
 }
 
 func New(cfg Config, store *rooms.Store, lk LiveKit) *Server {
@@ -50,6 +52,7 @@ func New(cfg Config, store *rooms.Store, lk LiveKit) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
+	mux.HandleFunc("POST /webhooks/livekit", s.livekitWebhook)
 	mux.Handle("POST /rooms", s.auth(s.createRoom))
 	mux.Handle("POST /rooms/{code}/join", s.auth(s.joinRoom))
 	mux.Handle("GET /rooms/{code}", s.auth(s.getRoom))
@@ -84,11 +87,15 @@ func readName(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
-	if _, ok := readName(w, r); !ok {
+	name, ok := readName(w, r)
+	if !ok {
 		return
 	}
 	code, exp := s.store.Create(time.Now())
 	slog.Info("room created", "code", code)
+	if err := s.notifyDiscord(r.Context(), "🟢 "+name+" criou a sala "+code+"."); err != nil {
+		slog.Warn("room created: discord", "err", err)
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{"code": code, "expiresAt": exp.UTC().Format(time.RFC3339)})
 }
 
@@ -197,8 +204,13 @@ func (s *Server) SweepLoop(ctx context.Context, every time.Duration) {
 		for _, rm := range res.Rooms {
 			live[rm.Name] = true
 		}
-		if n := s.store.Sweep(time.Now(), live); n > 0 {
-			slog.Info("sweep", "expired", n)
+		for _, code := range s.store.Sweep(time.Now(), live) {
+			slog.Info("sweep", "code", code)
+			if !live[code] {
+				if err := s.notifyDiscord(ctx, "🔴 Sala "+code+" encerrada (código expirado sem sala ativa)."); err != nil {
+					slog.Warn("sweep: discord", "err", err)
+				}
+			}
 		}
 	}
 }
@@ -240,7 +252,7 @@ func (s *Server) cors(h http.Handler) http.Handler {
 
 func (s *Server) rateLimit(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/healthz" && !s.rl.allow(clientIP(r), time.Now()) {
+		if r.URL.Path != "/healthz" && r.URL.Path != "/webhooks/livekit" && !s.rl.allow(clientIP(r), time.Now()) {
 			writeErr(w, http.StatusTooManyRequests, "rate limited")
 			return
 		}

@@ -112,7 +112,7 @@ func (s *Store) Adopt(code string, createdAt, now time.Time) {
 
 // Sweep drops codes older than MaxAge or absent from live for longer than
 // EmptyGrace. live holds room names currently present in LiveKit.
-func (s *Store) Sweep(now time.Time, live map[string]bool) (removed int) {
+func (s *Store) Sweep(now time.Time, live map[string]bool) (removed []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for c, e := range s.m {
@@ -122,7 +122,7 @@ func (s *Store) Sweep(now time.Time, live map[string]bool) (removed int) {
 		}
 		if now.Sub(e.createdAt) > MaxAge || now.Sub(e.lastSeen) > EmptyGrace {
 			delete(s.m, c)
-			removed++
+			removed = append(removed, c)
 		}
 	}
 	return removed

@@ -11,12 +11,12 @@ func TestNormalize(t *testing.T) {
 		"KJ7-29F":  "KJ7-29F",
 		"kj729f":   "KJ7-29F",
 		" kj7 29f": "KJ7-29F",
-		"KJ7-29":   "",  // short
-		"KJ7-29FF": "",  // long
-		"KJ0-29F":  "",  // ambiguous 0
-		"KJ1-29F":  "",  // ambiguous 1
-		"KJI-29F":  "",  // ambiguous I
-		"KJ7_29F":  "",  // junk
+		"KJ7-29":   "", // short
+		"KJ7-29FF": "", // long
+		"KJ0-29F":  "", // ambiguous 0
+		"KJ1-29F":  "", // ambiguous 1
+		"KJI-29F":  "", // ambiguous I
+		"KJ7_29F":  "", // junk
 	}
 	for in, want := range cases {
 		got, ok := Normalize(in)
@@ -54,18 +54,18 @@ func TestSweep(t *testing.T) {
 	idle, _ := s.Create(t0)
 
 	// within grace: both kept
-	if n := s.Sweep(t0.Add(EmptyGrace-time.Second), nil); n != 0 {
-		t.Fatalf("removed %d within grace", n)
+	if removed := s.Sweep(t0.Add(EmptyGrace-time.Second), nil); len(removed) != 0 {
+		t.Fatalf("removed %v within grace", removed)
 	}
 	// past grace: only the room LiveKit reports as live survives
-	if n := s.Sweep(t0.Add(EmptyGrace+time.Second), map[string]bool{live: true}); n != 1 {
-		t.Fatalf("removed %d, want 1", n)
+	if removed := s.Sweep(t0.Add(EmptyGrace+time.Second), map[string]bool{live: true}); len(removed) != 1 || removed[0] != idle {
+		t.Fatalf("removed %v, want idle code %s", removed, idle)
 	}
 	if s.Exists(idle, t0) || !s.Exists(live, t0) {
 		t.Fatal("wrong code swept")
 	}
 	// hard 12h cap even if still live
-	if n := s.Sweep(t0.Add(MaxAge+time.Second), map[string]bool{live: true}); n != 1 {
+	if removed := s.Sweep(t0.Add(MaxAge+time.Second), map[string]bool{live: true}); len(removed) != 1 || removed[0] != live {
 		t.Fatalf("max age not enforced")
 	}
 }

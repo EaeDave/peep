@@ -85,6 +85,22 @@ Dynamic Configurations). O Traefik recarrega sozinho.
 - Se a API reiniciar, salas ainda vivas no LiveKit são reconhecidas na próxima
   entrada (o código é recuperado consultando o LiveKit); sem banco de dados.
 
+### Notificações do Discord
+
+Na aplicação API/site, configure `DISCORD_WEBHOOK_URL` no Coolify. A URL é secreta
+e não vai para o cliente. As mensagens incluem nome e código na criação, entrada
+e saída de participantes, e encerramento da sala (inclusive pelo administrador).
+Criação e expiração de códigos nunca usados são notificações de melhor esforço.
+Entradas/saídas vêm de conexões reais, não da emissão de tokens.
+
+O LiveKit envia eventos assinados para `POST /webhooks/livekit`; ajuste a URL em
+`livekit/livekit.yaml` se mudar o domínio da API. `LIVEKIT_WEBHOOK_API_KEY` usa a
+mesma chave do servidor. Publique primeiro a API e só depois o LiveKit, com salas
+vazias. O endpoint verifica assinatura e checksum, ignora eventos irrelevantes
+e suprime IDs repetidos por 24 horas em memória. Sem fila durável: reiniciar a API
+pode repetir uma mensagem reenviada; eventos durante indisponibilidade do Discord
+são tentados novamente pelo LiveKit dentro dos limites de sua fila.
+
 ## 5. Smoke test
 
 ```sh

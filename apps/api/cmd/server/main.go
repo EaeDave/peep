@@ -35,9 +35,10 @@ func main() {
 		InviteSecret: mustEnv("INVITE_SECRET"),
 		PublicWSURL:  mustEnv("PUBLIC_LIVEKIT_WS_URL"),
 		// Tauri origins are always allowed (Windows client).
-		AllowedOrigins: []string{"tauri://localhost", "http://tauri.localhost"},
-		AdminUser:      os.Getenv("ADMIN_USER"),
-		AdminPassword:  os.Getenv("ADMIN_PASSWORD"),
+		AllowedOrigins:    []string{"tauri://localhost", "http://tauri.localhost"},
+		AdminUser:         os.Getenv("ADMIN_USER"),
+		AdminPassword:     os.Getenv("ADMIN_PASSWORD"),
+		DiscordWebhookURL: os.Getenv("DISCORD_WEBHOOK_URL"),
 	}
 	for _, o := range strings.Split(os.Getenv("CORS_ORIGINS"), ",") {
 		if o = strings.TrimSpace(o); o != "" {

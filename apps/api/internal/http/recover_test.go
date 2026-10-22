@@ -76,7 +76,7 @@ func TestAdoptKeepsCreationTime(t *testing.T) {
 	s := rooms.NewStore()
 	now := time.Now()
 	s.Adopt("GDN-K22", now.Add(-rooms.MaxAge), now)
-	if n := s.Sweep(now.Add(time.Second), map[string]bool{"GDN-K22": true}); n != 1 {
+	if removed := s.Sweep(now.Add(time.Second), map[string]bool{"GDN-K22": true}); len(removed) != 1 {
 		t.Error("adopted room exceeded MaxAge but was kept")
 	}
 }
