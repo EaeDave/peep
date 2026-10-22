@@ -221,6 +221,13 @@
 	};
 
 	let focus = $derived(session?.tiles.find((t) => t.id === session?.focusId));
+	// Discord-style: without a shared screen the stage is a grid of everyone in the room.
+	let grid = $derived(!!session && !session.tiles.some((t) => t.screen));
+	let gridCols = $derived.by(() => {
+		const n = session?.people.length ?? 1;
+		return n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+	});
+	const cameraOf = (identity: string) => session?.tiles.find((t) => t.id === `${identity}:camera`);
 </script>
 
 <svelte:window onkeydown={onKey} onmousemove={poke} onpointerdown={poke} />
@@ -267,7 +274,26 @@
 		</header>
 		<main class="room-content" class:with-people={peopleOpen}>
 		<section class="stage" ondblclick={toggleFullscreen} role="presentation">
-			{#if focus}
+			{#if grid}
+				<div class="people-grid" style:--cols={gridCols}>
+					{#each session.people as p (p.identity)}
+						{@const cam = cameraOf(p.identity)}
+						<div class="cell" class:speaking={p.speaking} aria-label={`${p.name}${p.speaking ? ', falando' : ''}`}>
+							{#if cam}
+								{#key cam.track}
+									<video {@attach attachTrack(cam.track)} class:mirror={cam.local} autoplay playsinline muted></video>
+								{/key}
+							{:else}
+								<span class="cell-avatar" aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}</span>
+							{/if}
+							<span class="cell-name">
+								{#if !p.mic}<Icon name="mic-off" size={13} />{/if}
+								{p.name}{p.local ? ' (você)' : ''}
+							</span>
+						</div>
+					{/each}
+				</div>
+			{:else if focus}
 				{#key focus.id}
 					<video
 						{@attach attachTrack(focus.track)}
@@ -278,17 +304,6 @@
 					></video>
 				{/key}
 				<span class="tag"><Icon name={focus.screen ? 'screen' : 'camera'} size={14} /> {focus.name}<span>{focus.screen ? 'Tela compartilhada' : 'Câmera'}</span></span>
-			{:else}
-				<div class="empty">
-					<div class="empty-screen"><Icon name="screen" size={42} /><span class="empty-camera"><Icon name="camera" size={20} /></span></div>
-					<h1>A sala está pronta.</h1>
-					<p>Compartilhe sua tela ou ligue a câmera.<br />O próximo momento acontece aqui.</p>
-					<button class="invite-code" onclick={copyCode} aria-label={`Copiar código da sala ${code}`}>
-						<span><span class="invite-label">Convide com este código</span><strong class="mono">{code}</strong></span>
-						<Icon name="copy" size={20} />
-					</button>
-					<span class="empty-note">Seu microfone começa desligado.</span>
-				</div>
 			{/if}
 
 			{#if session.status === 'reconnecting' || session.status === 'connecting'}
@@ -305,7 +320,7 @@
 			{/if}
 		</section>
 
-		{#if session.tiles.length > 1 || (session.tiles.length === 1 && !focus)}
+		{#if !grid && session.tiles.length > 1}
 			<aside class="strip" class:closed={!stripOpen} aria-label="Transmissões da sala">
 				<button class="handle" aria-label={stripOpen ? 'Recolher miniaturas' : 'Mostrar miniaturas'} aria-expanded={stripOpen} onclick={() => (stripOpen = !stripOpen)}>
 					<span class:rotate={!stripOpen}><Icon name="chevron-down" /></span>
@@ -341,7 +356,7 @@
 				</label>
 				{#each session.people as p (p.identity)}
 					<div class="person">
-						<span class="avatar" aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}<span class="dot" style:background={QUALITY_COLOR[p.quality]}></span></span>
+						<span class="avatar" class:speaking={p.speaking} aria-hidden="true">{p.name.trim().slice(0, 2).toLocaleUpperCase()}<span class="dot" style:background={QUALITY_COLOR[p.quality]}></span></span>
 						<span class="pname">{p.name}<small>{p.local ? 'Você' : 'Participante'}</small></span>
 						<span class="media-indicators">
 							{#if p.screen}<span role="img" aria-label="Compartilhando tela"><Icon name="screen" size={15} /></span>{/if}
@@ -630,10 +645,36 @@
 		border: 1px solid var(--border);
 		border-radius: 16px;
 	}
-	.stage:has(video) { background: #000; }
+	.stage { container-type: size; }
+	.stage:has(> video) { background: #000; }
 	/* Absolute: a % height inside the grid cell resolves to auto, so the video
 	   kept its 16:9 height and the stage clipped it on wide screens. */
 	.stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+	.people-grid {
+		position: absolute; inset: 12px; display: grid; gap: 12px;
+		grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr);
+	}
+	/* Stack only when the stage is portrait; side by side otherwise (Discord-like). */
+	@container (max-aspect-ratio: 3/4) { .people-grid { grid-template-columns: minmax(0, 1fr); } }
+	.cell {
+		position: relative; display: grid; place-items: center; overflow: hidden; min-height: 0;
+		container-type: size;
+		background: var(--card); border: 2px solid transparent; border-radius: 12px;
+		transition: border-color 0.15s, box-shadow 0.15s;
+	}
+	.cell.speaking { border-color: var(--ok); box-shadow: 0 0 18px color-mix(in srgb, var(--ok) 30%, transparent); }
+	.cell video { object-fit: cover; }
+	.cell-avatar {
+		/* Sized from the cell's smaller side so short cells never clip it. */
+		display: grid; place-items: center; width: min(112px, 42cqmin); aspect-ratio: 1; border-radius: 28%;
+		background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--fg);
+		font-size: clamp(12px, 13cqmin, 34px); font-weight: 600;
+	}
+	.cell-name {
+		position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 5px;
+		max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		background: #000a; color: #fff; padding: 4px 9px; border-radius: 7px; font-size: 12px;
+	}
 	.mirror { transform: scaleX(-1); }
 	.tag {
 		position: absolute; left: 16px; top: 16px;
@@ -642,28 +683,6 @@
 		padding: 8px 12px; border: 1px solid #ffffff20; border-radius: 8px; font-size: 12px;
 	}
 	.tag > span { color: #ccc; margin-left: 8px; }
-	.empty { text-align: center; padding: 24px; max-width: 420px; }
-	.empty-screen {
-		position: relative; display: grid; place-items: center;
-		width: 96px; height: 80px; margin: 0 auto 28px;
-		color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card));
-		border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-radius: 20px;
-	}
-	.empty-camera {
-		position: absolute; right: -12px; bottom: -10px; display: grid; place-items: center;
-		width: 38px; height: 34px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: var(--muted);
-	}
-	.empty h1 { font-size: clamp(24px, 3vw, 32px); }
-	.empty p { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 12px 0 26px; }
-	.invite-code {
-		width: 100%; max-width: 280px; margin: auto; padding: 14px 18px;
-		justify-content: space-between; text-align: left; background: var(--card); border-radius: 12px;
-	}
-	.invite-code > span { display: grid; gap: 7px; }
-	.invite-label { color: var(--muted); font-size: 11px; }
-	.invite-code strong { font-size: 21px; font-weight: 550; }
-	.invite-code > :global(svg) { color: var(--muted); }
-	.empty-note { display: block; color: var(--muted); font-size: 11px; margin-top: 18px; }
 	.banner {
 		position: absolute; top: 16px; left: 50%; translate: -50% 0;
 		background: var(--card); color: var(--fg); padding: 10px 16px; border: 1px solid var(--border); border-radius: 10px;
@@ -696,6 +715,7 @@
 		border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--fg); font-size: 11px; font-weight: 600;
 	}
 	.avatar .dot { position: absolute; bottom: -1px; right: -1px; border: 2px solid var(--card); box-sizing: content-box; }
+	.avatar.speaking { box-shadow: 0 0 0 2px var(--ok); }
 	.avatar.small { width: 34px; height: 34px; border-radius: 10px; }
 	.pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 	.pname small, .local-state small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
@@ -759,21 +779,11 @@
 		.controls button > span:not(.people-count) { display: none; }
 		.control-divider { margin: 0; }
 		.thumb { width: 128px; }
-		.empty { padding: 16px; }
-		.empty-screen { margin-bottom: 22px; width: 80px; height: 68px; }
-		.empty p { font-size: 12px; }
 		.people { top: 72px; right: 10px; bottom: 90px; }
-	}
-	@media (max-height: 600px) {
-		.empty-screen, .empty-note { display: none; }
-		.empty { padding: 16px; }
-		.empty p { margin: 8px 0 14px; }
-		.empty h1 { font-size: 24px; }
-		.invite-code { padding: 10px 16px; }
 	}
 	.volume-label { display: grid; gap: 8px; color: var(--muted); font-size: 11px; padding-bottom: 12px; }
 	@media (prefers-reduced-motion: reduce) {
-		.room-header, .room-footer {
+		.room-header, .room-footer, .cell {
 			transition: none;
 		}
 	}

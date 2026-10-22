@@ -47,10 +47,12 @@ compatíveis com instalações existentes.
 A página inicial apresenta o projeto e mostra o comando para o seu sistema.
 `/join` abre a tela de criar/entrar em uma sala; links `/r/{code}` continuam diretos.
 
-Na sala, o cabeçalho reúne código, conexão e configurações; os controles de tela,
-câmera e microfone ficam separados das miniaturas. O painel de participantes
-permite ajustar o áudio de cada tela compartilhada. Em janelas pequenas, ele
-abre sobre o vídeo sem empurrar os controles. Alterar o servidor durante uma
+Na sala, o cabeçalho reúne código, conexão e configurações. Sem tela
+compartilhada, o palco mostra uma grade com todos os participantes (câmera ou
+iniciais), com borda verde em quem está falando, como no Discord; quando alguém
+compartilha, a tela ocupa o palco e as câmeras viram miniaturas. O painel "Na
+sala" abre por padrão, marca quem fala e ajusta o volume de voz e de tela de cada
+pessoa; abaixo de 640 px ele abre sobre o vídeo. Alterar o servidor durante uma
 sessão só afeta a próxima entrada; não derruba a conexão atual.
 
 - **Linux / Omarchy:** o comando `curl` instala o plugin Quickshell da última

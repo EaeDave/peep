@@ -73,6 +73,8 @@ export interface Person {
 	/** Has a microphone published (muted or not): its voice volume can be set. */
 	voice: boolean;
 	quality: ConnectionQuality;
+	/** Currently talking (LiveKit's server-side voice activity). */
+	speaking: boolean;
 }
 
 export class Session {
@@ -145,6 +147,7 @@ export class Session {
 				refresh();
 			})
 			.on(RoomEvent.ConnectionQualityChanged, refresh)
+			.on(RoomEvent.ActiveSpeakersChanged, refresh)
 			.on(RoomEvent.Reconnecting, () => (this.status = 'reconnecting'))
 			.on(RoomEvent.Reconnected, () => (this.status = 'connected'))
 			.on(RoomEvent.Disconnected, () => {
@@ -216,7 +219,8 @@ export class Session {
 				mic: live(Track.Source.Microphone),
 				screenAudio: !!pub(Track.Source.ScreenShareAudio),
 				voice: !!pub(Track.Source.Microphone),
-				quality: p.connectionQuality
+				quality: p.connectionQuality,
+				speaking: p.isSpeaking
 			});
 		}
 
