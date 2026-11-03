@@ -17,10 +17,15 @@ export async function leaveViewer() {
 	else await goto('/join');
 }
 
-/** Tauri: the window covers the monitor (WebView2 element fullscreen only fills the window). */
+/** Tauri: the window covers the monitor (WebView2 element fullscreen only fills the window).
+ *  Builds without the set-fullscreen permission fall back to element fullscreen. */
 export async function setFullscreen(on: boolean) {
-	if (isTauri) await getCurrentWindow().setFullscreen(on);
-	else if (on) await document.documentElement.requestFullscreen();
+	if (isTauri) {
+		try {
+			return await getCurrentWindow().setFullscreen(on);
+		} catch {}
+	}
+	if (on) await document.documentElement.requestFullscreen();
 	else if (document.fullscreenElement) await document.exitFullscreen();
 }
 

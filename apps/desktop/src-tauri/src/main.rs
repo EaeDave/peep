@@ -270,6 +270,7 @@ fn main() {
                         .windows([POPUP, VIEWER])
                         .permission("core:default")
                         .permission("core:window:allow-close")
+                        .permission("core:window:allow-set-fullscreen")
                         .permission("core:window:allow-start-dragging")
                         .permission("allow-open-viewer")
                         .permission("allow-update-status")
