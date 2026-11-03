@@ -17,6 +17,13 @@ export async function leaveViewer() {
 	else await goto('/join');
 }
 
+/** Tauri: the window covers the monitor (WebView2 element fullscreen only fills the window). */
+export async function setFullscreen(on: boolean) {
+	if (isTauri) await getCurrentWindow().setFullscreen(on);
+	else if (on) await document.documentElement.requestFullscreen();
+	else if (document.fullscreenElement) await document.exitFullscreen();
+}
+
 /** Desktop updater (Tauri): [current version, available version or null]. */
 export type UpdateState = [string, string | null];
 export const updateStatus = () => invoke<UpdateState>('update_status');

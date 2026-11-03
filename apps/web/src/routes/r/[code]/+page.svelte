@@ -6,7 +6,7 @@
 	import { absorbUrlParams, maskCode, normalizeServerUrl, settings } from '#lib/config.ts';
 	import { QUALITY, type QualityMode, Session } from '#lib/livekit/session.svelte.ts';
 	import type { NoiseMode } from '#lib/livekit/noiseFilter.ts';
-	import { isTauri, leaveViewer } from '#lib/platform.ts';
+	import { isTauri, leaveViewer, setFullscreen } from '#lib/platform.ts';
 	import { askNotificationPermission, type NoticeKind, preloadRoomSounds, roomSound, systemNotify } from '#lib/notify.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
@@ -29,6 +29,7 @@
 	let volumeMenu = $state<{ identity: string; x: number; y: number } | null>(null);
 	let notifyOn = $state(settings.notify);
 	let controls = $state(true);
+	let full = $state(false);
 	let hideTimer: ReturnType<typeof setTimeout>;
 	let statsTimer: ReturnType<typeof setInterval>;
 
@@ -191,8 +192,8 @@
 	}
 
 	function toggleFullscreen() {
-		if (document.fullscreenElement) document.exitFullscreen();
-		else document.documentElement.requestFullscreen().catch(() => {});
+		const on = !full;
+		setFullscreen(on).then(() => (full = on), () => {});
 	}
 
 	// VW-5: controls auto-hide after 3 s without mouse movement.
@@ -205,6 +206,11 @@
 	function onKey(e: KeyboardEvent) {
 		if (e.key === 'Escape' && volumeMenu) {
 			volumeMenu = null;
+			return;
+		}
+		// The browser exits on Esc by itself; the Tauri window needs it explicitly.
+		if (e.key === 'Escape' && full && isTauri) {
+			toggleFullscreen();
 			return;
 		}
 		if (settingsOpen || (e.target as HTMLElement).closest('input, textarea, select') || !session) return;
@@ -258,6 +264,7 @@
 </script>
 
 <svelte:window onkeydown={onKey} onmousemove={poke} onpointerdown={closeVolumeOutside} />
+<svelte:document onfullscreenchange={() => (full = !!document.fullscreenElement)} />
 
 {#if needName || error}
 	<div class="center">
@@ -284,7 +291,7 @@
 		</form>
 	</div>
 {:else if session}
-	<div class="viewer" class:cursor-hidden={!controls}>
+	<div class="viewer" class:full class:cursor-hidden={!controls}>
 		<header class="room-header" class:quiet={!controls} onfocusin={poke}>
 			<span class="brand">peep<span>.</span></span>
 			<div class="room-identity">
@@ -359,7 +366,7 @@
 		</section>
 
 		{#if !grid}
-			<aside class="strip" class:closed={!stripOpen} aria-label="Transmissões e participantes">
+			<aside class="strip" class:closed={!stripOpen} class:quiet={full && !controls} aria-label="Transmissões e participantes">
 				<button class="handle" aria-label={stripOpen ? 'Recolher miniaturas' : 'Mostrar miniaturas'} aria-expanded={stripOpen} onclick={() => (stripOpen = !stripOpen)}>
 					<span class:rotate={!stripOpen}><Icon name="chevron-down" /></span>
 				</button>
@@ -802,7 +809,15 @@
 	.mic-menu .check { width: 14px; flex-shrink: 0; display: grid; place-items: center; }
 	.quiet { opacity: 0; pointer-events: none; }
 	.quiet:focus-within { opacity: 1; pointer-events: auto; cursor: default; }
-	.room-header, .room-footer { transition: opacity 0.2s; }
+	.room-header, .room-footer, .strip { transition: opacity 0.2s; }
+	/* Fullscreen: the stage takes the whole screen; header, strip and footer float over it. */
+	.viewer.full { grid-template-rows: minmax(0, 1fr); }
+	.viewer.full .room-content { padding: 0; }
+	.viewer.full .stage { border: none; border-radius: 0; }
+	.viewer.full .room-header, .viewer.full .room-footer { position: absolute; left: 0; right: 0; z-index: 3; border: none; }
+	.viewer.full .room-header { top: 0; height: 72px; background: linear-gradient(#000c, transparent); }
+	.viewer.full .room-footer { bottom: 0; background: linear-gradient(transparent, #000c); }
+	.viewer.full .strip { position: absolute; left: 20px; right: 20px; bottom: 100px; z-index: 3; }
 	.toast { position: fixed; bottom: 110px; left: 50%; translate: -50% 0; background: var(--card); color: var(--fg); padding: 12px 18px; border: 1px solid var(--border); border-radius: 10px; z-index: 11; max-width: calc(100% - 32px); font-size: 13px; }
 	@media (max-width: 850px) {
 		.local-state { display: none; }
@@ -833,7 +848,7 @@
 	}
 	.volume-label { display: grid; gap: 8px; color: var(--muted); font-size: 11px; padding-bottom: 12px; }
 	@media (prefers-reduced-motion: reduce) {
-		.room-header, .room-footer, .cell {
+		.room-header, .room-footer, .strip, .cell {
 			transition: none;
 		}
 	}

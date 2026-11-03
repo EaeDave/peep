@@ -90,7 +90,8 @@ export class Session {
 	});
 
 	status = $state<'connecting' | 'connected' | 'reconnecting' | 'disconnected'>('connecting');
-	tiles = $state<Tile[]>([]);
+	/** Raw + reused objects: a new Tile per refresh re-runs the video attachments (detach/attach = flicker). */
+	tiles = $state.raw<Tile[]>([]);
 	people = $state<Person[]>([]);
 	focusId = $state<string | null>(null);
 	screenOn = $state(false);
@@ -188,6 +189,7 @@ export class Session {
 	#refresh() {
 		const lp = this.room.localParticipant;
 		const all: Participant[] = [lp, ...this.room.remoteParticipants.values()];
+		const prev = new Map(this.tiles.map((t) => [t.id, t]));
 		const tiles: Tile[] = [];
 		const people: Person[] = [];
 		for (const p of all) {
@@ -201,13 +203,13 @@ export class Session {
 			for (const source of [Track.Source.ScreenShare, Track.Source.Camera]) {
 				const track = pub(source)?.track;
 				if (track && !pub(source)!.isMuted) {
-					tiles.push({
-						id: `${p.identity}:${source}`,
-						name,
-						local,
-						screen: source === Track.Source.ScreenShare,
-						track
-					});
+					const id = `${p.identity}:${source}`;
+					const old = prev.get(id);
+					tiles.push(
+						old && old.track === track && old.name === name
+							? old
+							: { id, name, local, screen: source === Track.Source.ScreenShare, track }
+					);
 				}
 			}
 			people.push({
@@ -225,8 +227,7 @@ export class Session {
 		}
 
 		// VW-3: a newly appearing remote screen share takes focus unless one is already focused.
-		const before = new Set(this.tiles.map((t) => t.id));
-		const newScreen = tiles.find((t) => t.screen && !t.local && !before.has(t.id));
+		const newScreen = tiles.find((t) => t.screen && !t.local && !prev.has(t.id));
 		const focused = tiles.find((t) => t.id === this.focusId);
 		if (newScreen && !focused?.screen) this.focusId = newScreen.id;
 		else if (!focused) {
