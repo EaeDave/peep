@@ -1,5 +1,5 @@
 <script lang="ts">
-	type Name = 'settings' | 'clipboard' | 'arrow-right' | 'arrow-left' | 'server' | 'key' | 'eye' | 'eye-off' | 'check' | 'screen' | 'camera' | 'mic' | 'mic-off' | 'copy' | 'users' | 'fullscreen' | 'exit' | 'chevron-down' | 'close' | 'refresh' | 'volume' | 'chat' | 'attach' | 'send';
+	type Name = 'settings' | 'clipboard' | 'arrow-right' | 'arrow-left' | 'server' | 'key' | 'eye' | 'eye-off' | 'check' | 'screen' | 'camera' | 'mic' | 'mic-off' | 'copy' | 'users' | 'fullscreen' | 'exit' | 'chevron-down' | 'close' | 'refresh' | 'volume' | 'chat' | 'attach' | 'send' | 'download';
 	let { name, size = 18 }: { name: Name; size?: number } = $props();
 	const paths: Record<Name, string> = {
 		settings: 'M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1 1-3Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
@@ -25,6 +25,7 @@
 		fullscreen: 'M8 3H3v5 M16 3h5v5 M21 16v5h-5 M3 16v5h5',
 		exit: 'M9 3H3v18h6 M9 12h12 M16 7l5 5-5 5',
 		'chevron-down': 'm6 9 6 6 6-6',
+		download: 'M12 3v12 M7 10l5 5 5-5 M4 21h16',
 		close: 'm6 6 12 12 M6 18 18 6'
 	};
 </script>

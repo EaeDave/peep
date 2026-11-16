@@ -116,7 +116,12 @@ func (s *Server) chatFile(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", f.Type)
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	h.Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": f.Name}))
+	// ?download: <a download> is ignored cross-origin (site ≠ API), so the server asks for it.
+	disp := "inline"
+	if r.URL.Query().Has("download") {
+		disp = "attachment"
+	}
+	h.Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": f.Name}))
 	h.Set("Cache-Control", "private, max-age=86400, immutable")
 	http.ServeContent(w, r, "", st.ModTime(), fh)
 }

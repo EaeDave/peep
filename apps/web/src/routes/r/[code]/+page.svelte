@@ -16,7 +16,7 @@
 	const code = maskCode(page.params.code ?? '');
 	let session = $state<Session | null>(null);
 	let chat = $state<Chat | null>(null);
-	let chatOpen = $state(false);
+	let chatOpen = $state(true);
 	let needName = $state(true);
 	let name = $state('');
 	let settingsOpen = $state(false);
@@ -462,7 +462,8 @@
 				{/if}
 			</div>
 		{/if}
-		{#if chat && chatVisible}
+		<!-- After the first connect: posting needs our LiveKit identity. -->
+		{#if chat && chatVisible && session.status !== 'connecting'}
 			<ChatPanel {chat} onclose={() => (chatOpen = false)} onerror={flash} />
 		{/if}
 		</main>

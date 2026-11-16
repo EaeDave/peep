@@ -22,6 +22,13 @@
 	const grouped = (m: ChatMessage, prev?: ChatMessage) =>
 		!!prev && prev.identity === m.identity && Date.parse(m.at) - Date.parse(prev.at) < 5 * 60_000;
 
+	let typingText = $derived.by(() => {
+		const names = Object.values(chat.typing);
+		if (names.length === 0) return '';
+		if (names.length === 1) return `${names[0]} está digitando…`;
+		if (names.length === 2) return `${names[0]} e ${names[1]} estão digitando…`;
+		return 'Várias pessoas estão digitando…';
+	});
 	const toBottom = () => list && (list.scrollTop = list.scrollHeight);
 	$effect(() => {
 		void chat.messages;
@@ -102,7 +109,10 @@
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video class="media" src={fileUrl(m.file.id)} controls preload="metadata" playsinline onloadedmetadata={() => stick && toBottom()}></video>
 					{/if}
-					<p class="file">{m.file.name} · {size(m.file.size)}</p>
+					<p class="file">
+						<span>{m.file.name} · {size(m.file.size)}</span>
+						<a href={fileUrl(m.file.id, true)} download={m.file.name} aria-label={`Baixar ${m.file.name}`} title="Baixar"><Icon name="download" size={14} /></a>
+					</p>
 				{/if}
 			</li>
 		{:else}
@@ -130,9 +140,21 @@
 				e.currentTarget.value = '';
 			}}
 		/>
-		<textarea bind:this={field} bind:value={text} rows="1" maxlength="2000" placeholder="Mensagem" aria-label="Mensagem" onkeydown={onKey} onpaste={onPaste}></textarea>
+		<textarea
+			bind:this={field}
+			bind:value={text}
+			rows="1"
+			maxlength="2000"
+			placeholder="Mensagem"
+			aria-label="Mensagem"
+			onkeydown={onKey}
+			onpaste={onPaste}
+			oninput={() => (text.trim() ? chat.typed() : chat.stoppedTyping())}
+			onblur={() => chat.stoppedTyping()}
+		></textarea>
 		<button type="submit" class="icon" disabled={!text.trim() || sending} aria-label="Enviar mensagem"><Icon name="send" /></button>
 	</form>
+	<p class="typing" aria-live="polite">{typingText}</p>
 
 	{#if dragging}<div class="drop" aria-hidden="true">Solte para enviar · imagens e vídeos até 100 MB</div>{/if}
 </aside>
@@ -153,7 +175,7 @@
 	.chat {
 		position: relative;
 		display: grid;
-		grid-template-rows: auto minmax(0, 1fr) auto;
+		grid-template-rows: auto minmax(0, 1fr) auto auto;
 		min-height: 0;
 		background: color-mix(in srgb, var(--card) 45%, var(--bg));
 		border: 1px solid var(--border);
@@ -207,11 +229,16 @@
 	}
 	.media img { display: block; max-width: 100%; max-height: 280px; object-fit: contain; }
 	video.media { width: 100%; }
-	.file { margin: 3px 0 0; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.file { display: flex; align-items: center; gap: 6px; margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+	.file span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.file a { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px; color: inherit; }
+	.file a:hover { color: var(--fg); background: var(--border); }
+	.file a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 	.empty { margin: auto 0; padding: 24px 8px; color: var(--muted); font-size: 13px; text-align: center; line-height: 1.5; }
 	.bar { height: 4px; margin-top: 6px; border-radius: 2px; background: var(--border); overflow: hidden; }
 	.bar span { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
 	.cancel { margin-top: 6px; padding: 4px 10px; font-size: 11px; }
+	.typing { height: 22px; margin: 0; padding: 0 14px 6px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.composer {
 		display: flex;
 		align-items: flex-end;

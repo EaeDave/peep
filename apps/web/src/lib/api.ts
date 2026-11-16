@@ -82,7 +82,7 @@ export const chatHistory = (code: string) =>
 export const postMessage = (code: string, body: { name: string; identity: string; text: string; file?: string }) =>
 	call<ChatMessage>('POST', `/rooms/${encodeURIComponent(code)}/messages`, body);
 
-export const fileUrl = (id: string) => `${settings.apiUrl}/files/${encodeURIComponent(id)}`;
+export const fileUrl = (id: string, download = false) => `${settings.apiUrl}/files/${encodeURIComponent(id)}${download ? '?download' : ''}`;
 
 /** Uploads one image/video; XHR because fetch can't report upload progress. */
 export function uploadFile(code: string, file: File, onProgress: (fraction: number) => void, signal?: AbortSignal) {

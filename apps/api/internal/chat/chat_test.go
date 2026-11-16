@@ -24,6 +24,10 @@ func TestUploadPostDelete(t *testing.T) {
 	if err != nil || f.Size != 3 || f.Name != "....etcfoto.png" {
 		t.Fatalf("upload: %+v %v", f, err)
 	}
+	// Uploaded but not posted yet: history is an empty list, not JSON null.
+	if h := s.History("AAA-AAA"); h == nil || len(h) != 0 {
+		t.Fatalf("history before any post: %#v", h)
+	}
 	// A file id from another room can't be attached.
 	if _, err := s.Post("BBB-BBB", "Rafa", "rafa-1", "", f.ID, now); !errors.Is(err, ErrNoFile) {
 		t.Fatalf("cross-room attach: %v", err)

@@ -81,6 +81,9 @@ func TestChatFlow(t *testing.T) {
 		fw.Header().Get("Content-Type") != "video/mp4" || fw.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("file: %d %q %v", fw.Code, fw.Body, fw.Header())
 	}
+	if w := do("GET", "/files/"+f.ID+"?download", "", ""); w.Header().Get("Content-Disposition") != `attachment; filename=clip.mp4` {
+		t.Fatalf("download disposition: %q", w.Header().Get("Content-Disposition"))
+	}
 	if w := do("GET", "/files/deadbeef", "", ""); w.Code != http.StatusNotFound {
 		t.Fatalf("unknown file: %d", w.Code)
 	}

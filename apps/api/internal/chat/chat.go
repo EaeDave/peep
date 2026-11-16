@@ -161,7 +161,7 @@ func (s *Store) History(code string) []Message {
 	if r == nil {
 		return []Message{}
 	}
-	return append([]Message(nil), r.msgs...)
+	return append([]Message{}, r.msgs...) // never null in JSON, even for a room with only uploads
 }
 
 // Upload streams body (at most MaxFile bytes) to disk for the room.
