@@ -14,6 +14,7 @@ import (
 
 	"github.com/livekit/protocol/livekit"
 
+	"peep/api/internal/chat"
 	"peep/api/internal/rooms"
 	"peep/api/internal/token"
 )
@@ -34,6 +35,7 @@ type LiveKit interface {
 	ListParticipants(context.Context, *livekit.ListParticipantsRequest) (*livekit.ListParticipantsResponse, error)
 	DeleteRoom(context.Context, *livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error)
 	RemoveParticipant(context.Context, *livekit.RoomParticipantIdentity) (*livekit.RemoveParticipantResponse, error)
+	SendData(context.Context, *livekit.SendDataRequest) (*livekit.SendDataResponse, error)
 }
 
 type Server struct {
@@ -43,10 +45,12 @@ type Server struct {
 	rl      *limiter
 	loginRL *limiter
 	discord discordEvents
+	chat    *chat.Store
+	chatRL  *limiter
 }
 
-func New(cfg Config, store *rooms.Store, lk LiveKit) *Server {
-	return &Server{cfg: cfg, store: store, lk: lk, rl: newLimiter(30, time.Minute), loginRL: newLimiter(5, time.Minute)}
+func New(cfg Config, store *rooms.Store, lk LiveKit, chats *chat.Store) *Server {
+	return &Server{cfg: cfg, store: store, lk: lk, chat: chats, rl: newLimiter(30, time.Minute), loginRL: newLimiter(5, time.Minute), chatRL: newLimiter(120, time.Minute)}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -57,6 +61,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /rooms/{code}/join", s.auth(s.joinRoom))
 	mux.Handle("GET /rooms/{code}", s.auth(s.getRoom))
 	mux.Handle("POST /rooms/{code}/stats", s.auth(s.roomStats))
+	mux.Handle("GET /rooms/{code}/messages", s.auth(s.chatHistory))
+	mux.Handle("POST /rooms/{code}/messages", s.auth(s.chatPost))
+	mux.Handle("POST /rooms/{code}/files", s.auth(s.chatUpload))
+	// No auth: <img>/<video> can't send headers; the 128-bit id is the capability.
+	mux.HandleFunc("GET /files/{id}", s.chatFile)
 	if s.adminEnabled() {
 		mux.HandleFunc("POST /admin/login", s.adminLogin)
 		mux.Handle("GET /admin/rooms", s.adminAuth(s.adminRooms))
@@ -192,6 +201,7 @@ func (s *Server) SweepLoop(ctx context.Context, every time.Duration) {
 		}
 		s.rl.prune(time.Now())
 		s.loginRL.prune(time.Now())
+		s.chatRL.prune(time.Now())
 		lctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		res, err := s.lk.ListRooms(lctx, &livekit.ListRoomsRequest{})
 		cancel()
@@ -206,6 +216,7 @@ func (s *Server) SweepLoop(ctx context.Context, every time.Duration) {
 		}
 		for _, code := range s.store.Sweep(time.Now(), live) {
 			slog.Info("sweep", "code", code)
+			s.chat.Delete(code)
 			if !live[code] {
 				if err := s.notifyDiscord(ctx, "🔴 Sala "+code+" encerrada (código expirado sem sala ativa)."); err != nil {
 					slog.Warn("sweep: discord", "err", err)
@@ -252,7 +263,16 @@ func (s *Server) cors(h http.Handler) http.Handler {
 
 func (s *Server) rateLimit(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/healthz" && r.URL.Path != "/webhooks/livekit" && !s.rl.allow(clientIP(r), time.Now()) {
+		p, now := r.URL.Path, time.Now()
+		var l *limiter
+		switch {
+		case p == "/healthz" || p == "/webhooks/livekit" || strings.HasPrefix(p, "/files/"):
+		case strings.HasSuffix(p, "/messages") || strings.HasSuffix(p, "/files"):
+			l = s.chatRL // chatting needs more than the join/create budget
+		default:
+			l = s.rl
+		}
+		if l != nil && !l.allow(clientIP(r), now) {
 			writeErr(w, http.StatusTooManyRequests, "rate limited")
 			return
 		}

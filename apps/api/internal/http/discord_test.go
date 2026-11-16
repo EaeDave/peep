@@ -40,7 +40,7 @@ func TestDiscordLifecycle(t *testing.T) {
 	defer discord.Close()
 	store := rooms.NewStore()
 	cfg := Config{APIKey: "key", APISecret: "secretsecretsecretsecretsecret12", InviteSecret: "inv", DiscordWebhookURL: discord.URL}
-	h := New(cfg, store, nil).Handler()
+	h := New(cfg, store, nil, nil).Handler()
 	req := httptest.NewRequest("POST", "/rooms", strings.NewReader(`{"name":"Rafa @everyone"}`))
 	req.Header.Set("Authorization", "Bearer inv")
 	res := httptest.NewRecorder()
@@ -95,7 +95,7 @@ func TestDiscordLifecycle(t *testing.T) {
 	}
 	// Secret-bearing transport errors must not escape to callers/logs.
 	cfg.DiscordWebhookURL = "http://127.0.0.1:1/secret-token"
-	s := New(cfg, store, nil)
+	s := New(cfg, store, nil, nil)
 	err := s.notifyDiscord(httptest.NewRequest("GET", "/", nil).Context(), "test")
 	if err == nil || strings.Contains(err.Error(), "secret-token") {
 		t.Fatal("secret URL leaked")

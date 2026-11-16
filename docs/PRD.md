@@ -29,7 +29,7 @@ Desde agosto de 2026 o compartilhamento de tela, o Go Live e as chamadas de víd
 ### Não-objetivos (MVP)
 
 - Substituir a voz do Discord. O microfone existe, mas vem **desligado por padrão**.
-- Chat de texto, gravação, contas de usuário, histórico, mobile, macOS.
+- Gravação, contas de usuário, histórico persistente, mobile, macOS.
 - Escala pública ou multi-tenant.
 - Controle remoto da tela de outra pessoa.
 

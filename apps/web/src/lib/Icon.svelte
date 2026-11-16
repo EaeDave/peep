@@ -1,10 +1,13 @@
 <script lang="ts">
-	type Name = 'settings' | 'clipboard' | 'arrow-right' | 'arrow-left' | 'server' | 'key' | 'eye' | 'eye-off' | 'check' | 'screen' | 'camera' | 'mic' | 'mic-off' | 'copy' | 'users' | 'fullscreen' | 'exit' | 'chevron-down' | 'close' | 'refresh' | 'volume';
+	type Name = 'settings' | 'clipboard' | 'arrow-right' | 'arrow-left' | 'server' | 'key' | 'eye' | 'eye-off' | 'check' | 'screen' | 'camera' | 'mic' | 'mic-off' | 'copy' | 'users' | 'fullscreen' | 'exit' | 'chevron-down' | 'close' | 'refresh' | 'volume' | 'chat' | 'attach' | 'send';
 	let { name, size = 18 }: { name: Name; size?: number } = $props();
 	const paths: Record<Name, string> = {
 		settings: 'M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1 1-3Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
 		refresh: 'M20 12a8 8 0 1 1-2.3-5.7 M20 4v5h-5',
 		volume: 'M4 9h4l5-4v14l-5-4H4Z M16 9a4 4 0 0 1 0 6 M18.5 6.5a8 8 0 0 1 0 11',
+		chat: 'M4 5h16v11H9l-5 4Z',
+		attach: 'm20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L14.5 7',
+		send: 'M4 12 20 4l-4 16-4-7Z M12 13l8-9',
 		clipboard: 'M9 5H5v16h14V5h-4 M9 3h6v4H9Z',
 		'arrow-right': 'M4 12h16 M14 6l6 6-6 6',
 		'arrow-left': 'M20 12H4 M10 6l-6 6 6 6',

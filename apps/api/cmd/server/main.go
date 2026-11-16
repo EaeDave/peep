@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
+	"peep/api/internal/chat"
 	apihttp "peep/api/internal/http"
 	"peep/api/internal/rooms"
 )
@@ -51,7 +53,13 @@ func main() {
 	}
 
 	lk := lksdk.NewRoomServiceClient(mustEnv("LIVEKIT_URL"), cfg.APIKey, cfg.APISecret)
-	srv := apihttp.New(cfg, rooms.NewStore(), lk)
+	// shortcut: chat lives in memory + local disk, lost on an API restart; persist it if restarts mid-room matter.
+	chats, err := chat.New(filepath.Join(os.TempDir(), "peep-chat"))
+	if err != nil {
+		slog.Error("chat dir", "err", err)
+		os.Exit(1)
+	}
+	srv := apihttp.New(cfg, rooms.NewStore(), lk, chats)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

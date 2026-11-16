@@ -182,6 +182,8 @@ async fn open_viewer(app: AppHandle, code: String) -> Result<(), String> {
         .min_inner_size(480.0, 270.0)
         .resizable(true)
         .center()
+        // Let files dropped on the window reach the page (chat uploads) instead of Tauri.
+        .disable_drag_drop_handler()
         .build()
         .map_err(|e| e.to_string())?;
     grant_media(&v);

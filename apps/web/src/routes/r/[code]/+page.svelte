@@ -10,9 +10,13 @@
 	import { askNotificationPermission, type NoticeKind, preloadRoomSounds, roomSound, systemNotify } from '#lib/notify.ts';
 	import Icon from '#lib/Icon.svelte';
 	import ServerSettings from '#lib/ServerSettings.svelte';
+	import ChatPanel from '#lib/ChatPanel.svelte';
+	import { Chat } from '#lib/chat.svelte.ts';
 
 	const code = maskCode(page.params.code ?? '');
 	let session = $state<Session | null>(null);
+	let chat = $state<Chat | null>(null);
+	let chatOpen = $state(false);
 	let needName = $state(true);
 	let name = $state('');
 	let settingsOpen = $state(false);
@@ -87,6 +91,7 @@
 		needName = false;
 		const previous = session;
 		session = null;
+		chat = null;
 		let next: Session | null = null;
 		try {
 			await previous?.room.disconnect();
@@ -94,14 +99,19 @@
 			if (destroyed) return;
 			next = new Session();
 			next.onNotice = notice;
+			// Before connecting: messages pushed right after the join must not be missed.
+			const nextChat = new Chat(next.room, code);
 			session = next;
+			chat = nextChat;
 			await next.connect(url, token);
+			nextChat.load().catch((e) => flash(`Chat: ${(e as Error).message}`));
 			if (notifyOn && !destroyed) void roomSound('selfJoin');
 			if (destroyed) await next.room.disconnect();
 		} catch (e) {
 			await next?.room.disconnect();
 			if (!destroyed) {
 				session = null;
+				chat = null;
 				error = (e as Error).message || 'Falha ao conectar';
 			}
 		} finally {
@@ -246,6 +256,13 @@
 	});
 	const cameraOf = (identity: string) => session?.tiles.find((t) => t.id === `${identity}:camera`);
 	let volumePerson = $derived(volumeMenu && session?.people.find((p) => p.identity === volumeMenu?.identity));
+	// Fullscreen is the stage alone; opening the chat leaves it.
+	let chatVisible = $derived(chatOpen && !full);
+	$effect(() => chat?.setVisible(chatVisible));
+	function toggleChat() {
+		chatOpen = !chatVisible;
+		if (chatOpen && full) toggleFullscreen();
+	}
 
 	/** Opens the volume popover near the click (or the button, from the keyboard). */
 	function openVolume(identity: string, e: MouseEvent) {
@@ -302,11 +319,14 @@
 			</div>
 			<div class="room-tools">
 				<span class="connection"><span class="dot" class:connected={session.status === 'connected'}></span>{session.status === 'connected' ? 'Conectado' : session.status === 'connecting' ? 'Conectando' : session.status === 'reconnecting' ? 'Reconectando' : 'Desconectado'}</span>
+				<button class="icon-button chat-toggle" class:on={chatVisible} onclick={toggleChat} title="Chat" aria-label={chatVisible ? 'Fechar chat' : chat?.unread ? `Abrir chat, ${chat.unread} novas mensagens` : 'Abrir chat'} aria-pressed={chatVisible}>
+					<Icon name="chat" />{#if chat?.unread}<span class="badge" aria-hidden="true">{chat.unread > 99 ? '99+' : chat.unread}</span>{/if}
+				</button>
 				<button class="icon-button" onclick={toggleFullscreen} title="Tela cheia (F)" aria-label="Alternar tela cheia"><Icon name="fullscreen" /></button>
 				<button class="icon-button" onclick={() => (settingsOpen = true)} aria-label="Configurações"><Icon name="settings" /></button>
 			</div>
 		</header>
-		<main class="room-content">
+		<main class="room-content" class:with-chat={chatVisible}>
 		<section class="stage" ondblclick={toggleFullscreen} role="presentation">
 			{#if grid}
 				<div class="people-grid" style:--cols={gridCols}>
@@ -441,6 +461,9 @@
 					</label>
 				{/if}
 			</div>
+		{/if}
+		{#if chat && chatVisible}
+			<ChatPanel {chat} onclose={() => (chatOpen = false)} onerror={flash} />
 		{/if}
 		</main>
 		<footer class="room-footer" class:quiet={!controls} onfocusin={poke} onmouseenter={() => clearTimeout(hideTimer)} onmouseleave={poke}>
@@ -688,6 +711,15 @@
 		gap: 12px;
 		padding: 16px 20px;
 	}
+	.room-content.with-chat { grid-template-columns: minmax(0, 1fr) 340px; }
+	.room-content > :global(.chat) { grid-area: 1 / 2 / 3 / 3; }
+	.chat-toggle { position: relative; }
+	.room-tools .chat-toggle.on { color: var(--accent); }
+	.badge {
+		position: absolute; top: 2px; right: 0; min-width: 17px; height: 17px; padding: 0 4px;
+		display: grid; place-items: center; border-radius: 9px;
+		background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
+	}
 	.stage {
 		position: relative;
 		grid-area: 1 / 1;
@@ -824,6 +856,9 @@
 		.room-footer { justify-content: center; }
 		.room-header { padding: 0 20px; gap: 18px; }
 		.room-label { display: none; }
+		/* Narrow: the chat covers the stage instead of squeezing it. */
+		.room-content.with-chat { grid-template-columns: minmax(0, 1fr); }
+		.room-content > :global(.chat) { grid-area: 1 / 1 / 3 / 2; z-index: 4; }
 	}
 	@media (max-width: 480px) {
 		.center {

@@ -11,7 +11,7 @@ import (
 )
 
 func adminServer(user, pass string) *Server {
-	return New(Config{APISecret: "lk-secret", InviteSecret: "inv", AdminUser: user, AdminPassword: pass}, rooms.NewStore(), nil)
+	return New(Config{APISecret: "lk-secret", InviteSecret: "inv", AdminUser: user, AdminPassword: pass}, rooms.NewStore(), nil, nil)
 }
 
 func TestAdminToken(t *testing.T) {

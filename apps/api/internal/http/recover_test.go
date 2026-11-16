@@ -49,7 +49,7 @@ func join(h http.Handler, code string) int {
 func TestJoinRecoversRoomAfterRestart(t *testing.T) {
 	lk := &fakeLK{live: map[string]int64{"GDN-K22": time.Now().Add(-time.Hour).Unix()}}
 	store := rooms.NewStore() // fresh process: no codes in memory
-	h := New(Config{APIKey: "k", APISecret: "secretsecretsecretsecretsecret12", InviteSecret: "inv"}, store, lk).Handler()
+	h := New(Config{APIKey: "k", APISecret: "secretsecretsecretsecretsecret12", InviteSecret: "inv"}, store, lk, nil).Handler()
 
 	if c := join(h, "gdn-k22"); c != http.StatusOK {
 		t.Fatalf("live room after restart: %d", c)

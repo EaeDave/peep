@@ -56,6 +56,13 @@ direito no bloco/miniatura ou no ícone de volume que aparece ao passar o mouse.
 Alterar o servidor durante uma sessão só afeta a próxima entrada; não derruba a
 conexão atual.
 
+O ícone de balão no cabeçalho abre o chat da sala: texto (até 2000 caracteres)
+e imagens (PNG, JPEG, GIF, WebP) ou vídeos (MP4, WebM, MOV) de até 100 MB, pelo
+clipe, colando ou arrastando para o painel; até 1 GB por sala. Quem entra depois
+vê o histórico. Como a sala, o chat é efêmero: mensagens e arquivos ficam só na
+memória e no disco temporário da room-api e somem quando o código da sala expira
+(ou quando o admin a encerra, ou a room-api reinicia).
+
 - **Linux / Omarchy:** o comando `curl` instala o plugin Quickshell da última
   release. A URL do servidor vem da página, e o segredo é configurado localmente.
 - **Windows:** o comando PowerShell baixa o instalador x64 da última release.

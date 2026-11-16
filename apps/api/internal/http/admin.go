@@ -164,6 +164,7 @@ func (s *Server) adminClose(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	s.store.Delete(code)
+	s.chat.Delete(code)
 	if _, err := s.lk.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: code}); err != nil {
 		slog.Warn("admin: delete room", "code", code, "err", err)
 	}
